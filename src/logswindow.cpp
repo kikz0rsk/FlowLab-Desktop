@@ -22,6 +22,6 @@ LogsWindow::~LogsWindow()
     delete ui;
 }
 
-void LogsWindow::appendLog(const std::string &log) {
+void LogsWindow::appendLog(std::string log) {
     ui->logsTextEdit->appendPlainText(QString::fromStdString(log));
 }

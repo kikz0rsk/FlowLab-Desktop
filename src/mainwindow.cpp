@@ -28,6 +28,16 @@ MainWindow::MainWindow(QWidget *parent)	:
 	connect(ui->utf8Button, &QPushButton::clicked, this, &MainWindow::utf8Button_clicked);
 	connect(ui->utf16Button, &QPushButton::clicked, this, &MainWindow::utf16Button_clicked);
 
+	ndpiStruct = ndpi::ndpi_init_detection_module(nullptr);
+	if (ndpiStruct == nullptr) {
+		throw std::runtime_error("Failed to initialize nDPI");
+	}
+
+	ndpi::ndpi_protocol_bitmask_struct_t all;
+	NDPI_BITMASK_SET_ALL(all);
+	ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
+	ndpi::ndpi_finalize_initialization(ndpiStruct);
+
 	ui->listView->setModel(&model);
 	thread = std::thread(
 		[this] {
@@ -40,6 +50,7 @@ MainWindow::~MainWindow() {
 	stopFlag = true;
 	thread.join();
 	closesocket(socket);
+	ndpi::ndpi_exit_detection_module(ndpiStruct);
 	delete ui;
 }
 
@@ -229,11 +240,10 @@ void MainWindow::sendFromDevice() {
 				ipv4Layer->getDstIPAddress(),
 				srcPort,
 				dstPort,
-				socket
+				socket,
+				ndpiStruct
 			);
-			connections.addConnection(
-				connection
-			);
+			connections.addConnection(connection);
 		} else {
 			connection = std::make_shared<UdpConnection>(
 				pcpp::IPAddress(pcpp::IPv4Address((uint32_t) from.sin_addr.S_un.S_addr)),
@@ -241,11 +251,11 @@ void MainWindow::sendFromDevice() {
 				ipv4Layer->getSrcIPAddress(),
 				ipv4Layer->getDstIPAddress(),
 				srcPort,
-				dstPort
+				dstPort,
+				socket,
+				ndpiStruct
 			);
-			connections.addConnection(
-				connection
-			);
+			connections.addConnection(connection);
 		}
 		newConnection = true;
 	}
@@ -288,6 +298,10 @@ void MainWindow::listView_activated(const QModelIndex &index) {
 		const auto length = vec.size() / 2;
 		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) connection->getDataStream().data(), length));
 	}
+
+	std::array<char, 60> buffer{};
+	ndpi::ndpi_protocol2name(ndpiStruct, connection->getNdpiProtocol(), buffer.data(), buffer.size());
+	ui->protocolText->setText(QString::fromUtf8(buffer.data()));
 
 	if (auto tcpConnection = std::dynamic_pointer_cast<TcpConnection>(connection)) {
 		ui->tcpStatusText->setText(QString::fromStdString(remoteSocketStatusToString(tcpConnection->getRemoteSocketStatus())));

@@ -19,10 +19,10 @@ public:
     ~LogsWindow();
 
 signals:
-    void onLog(const std::string &log);
+    void onLog(std::string log);
 
 public slots:
-    void appendLog(const std::string &log);
+    void appendLog(std::string log);
 
 private:
     Ui::LogsWindow *ui;

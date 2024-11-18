@@ -47,6 +47,7 @@ private:
     std::unique_ptr<LogsWindow> logsWindow;
     int showMode = 0;
     ConnectionManager connections;
+    ndpi::ndpi_detection_module_struct *ndpiStruct;
 
     void threadRoutine();
     static std::string getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddress &dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol);

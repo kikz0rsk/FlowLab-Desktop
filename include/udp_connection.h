@@ -8,8 +8,8 @@ class UdpConnection : public Connection {
 protected:
 
 public:
-	UdpConnection(pcpp::IPAddress originHostIp, uint16_t originHostPort, pcpp::IPAddress src_ip, pcpp::IPAddress dst_ip, uint16_t src_port, uint16_t dst_port)
-		: Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::UDP) {
+	UdpConnection(pcpp::IPAddress originHostIp, uint16_t originHostPort, pcpp::IPAddress src_ip, pcpp::IPAddress dst_ip, uint16_t src_port, uint16_t dst_port, SOCKET deviceSocket, ndpi::ndpi_detection_module_struct *ndpiStruct)
+		: Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::UDP, deviceSocket, ndpiStruct) {
 	}
 
 	~UdpConnection() override {
@@ -21,17 +21,20 @@ public:
 			openSocket();
 		}
 
-		auto udpLayer = dynamic_cast<pcpp::UdpLayer*>(ipv4Layer->getNextLayer());
+		const auto udpLayer = dynamic_cast<pcpp::UdpLayer*>(ipv4Layer->getNextLayer());
 		if (udpLayer == nullptr) {
 			Logger::get().log("Received packet is not UDP");
 			return;
 		}
 
+		processDpi(ipv4Layer->getDataPtr(0), ipv4Layer->getDataLen());
+		sentPacketCount++;
+
 		if (udpLayer->getLayerPayloadSize() == 0) {
 			sendDataToRemote(std::vector<uint8_t>{});
 		} else {
-			auto data = udpLayer->getLayerPayload();
-			std::vector dataVec(data, data + udpLayer->getLayerPayloadSize());
+			const auto data = udpLayer->getLayerPayload();
+			const std::vector dataVec(data, data + udpLayer->getLayerPayloadSize());
 			{
 				auto writeLock = getWriteLock();
 				dataStream.reserve(dataStream.size() + dataVec.size());

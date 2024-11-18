@@ -12,7 +12,6 @@ class TcpConnection : public Connection {
 		unsigned int ackNumber{};
 		std::atomic_uint32_t ourSequenceNumber = 0;
 		unsigned short windowSize = 32767;
-		SOCKET deviceSocket;
 		std::thread connectingThread;
 
 	public:
@@ -23,9 +22,10 @@ class TcpConnection : public Connection {
 			const pcpp::IPAddress &dst_ip,
 			uint16_t src_port,
 			uint16_t dst_port,
-			SOCKET deviceSocket
+			SOCKET deviceSocket,
+			ndpi::ndpi_detection_module_struct *ndpiStruct
 		)	:
-			Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::TCP), deviceSocket(deviceSocket) {}
+			Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::TCP, deviceSocket, ndpiStruct) {}
 		~TcpConnection() override {
 			close();
 			if (connectingThread.joinable()) {
@@ -113,6 +113,9 @@ class TcpConnection : public Connection {
 				return;
 			}
 
+			processDpi(ipv4Layer->getDataPtr(0), ipv4Layer->getDataLen());
+			sentPacketCount++;
+
 			if (tcpLayer->getTcpHeader()->synFlag == 1 && tcpStatus != TcpStatus::SYN_RECEIVED) {
 				ackNumber = packetSequenceNumber + 1;
 				std::random_device rd;
@@ -137,7 +140,7 @@ class TcpConnection : public Connection {
 				return;
 			}
 
-			unsigned int dataSize = tcpLayer->getLayerPayloadSize();
+			const unsigned int dataSize = tcpLayer->getLayerPayloadSize();
 			if (dataSize > 0) {
 				auto data = tcpLayer->getLayerPayload();
 				{
@@ -334,6 +337,10 @@ class TcpConnection : public Connection {
 			udpPacket->computeCalculateFields();
 
 			return udpPacket;
+		}
+
+		[[nodiscard]] unsigned int getAckNumber() const {
+			return ackNumber;
 		}
 
 		[[nodiscard]] std::atomic_uint32_t &getOurSequenceNumber() {
