@@ -3,7 +3,9 @@
 enum class TcpStatus {
 	CLOSED = 0,
 	SYN_RECEIVED,
-	FIN_SENT
+	FIN_WAIT_1,
+	FIN_WAIT_2,
+	CLOSE_WAIT
 };
 
 constexpr std::array<std::string, 3> tcpStatusStrings = {

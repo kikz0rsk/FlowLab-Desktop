@@ -136,12 +136,26 @@
          <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
         </property>
        </widget>
-       <widget class="QPlainTextEdit" name="connectionStream">
+       <widget class="QTextEdit" name="connectionStream">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
           <horstretch>7</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <family>Lucida Console</family>
+         </font>
+        </property>
+        <property name="undoRedoEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+        <property name="acceptRichText">
+         <bool>false</bool>
         </property>
        </widget>
       </widget>
@@ -249,7 +263,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">

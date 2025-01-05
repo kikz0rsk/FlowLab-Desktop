@@ -13,6 +13,7 @@ class TcpConnection : public Connection {
 		std::atomic_uint32_t ourSequenceNumber = 0;
 		unsigned short windowSize = 32767;
 		std::thread connectingThread;
+		uint32_t finSequenceNumber = 0;
 
 	public:
 		TcpConnection(
@@ -26,6 +27,7 @@ class TcpConnection : public Connection {
 			ndpi::ndpi_detection_module_struct *ndpiStruct
 		)	:
 			Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::TCP, deviceSocket, ndpiStruct) {}
+
 		~TcpConnection() override {
 			close();
 			if (connectingThread.joinable()) {
@@ -35,6 +37,7 @@ class TcpConnection : public Connection {
 
 		void close() {
 			remoteSocketStatus = RemoteSocketStatus::CLOSED;
+			shutdown(socket, SD_BOTH);
 			closesocket(socket);
 		}
 
@@ -128,6 +131,14 @@ class TcpConnection : public Connection {
 				return;
 			}
 
+			if (packetAckNumber != ourSequenceNumber) {
+				Logger::get().log(
+					"Packet ack number does not match our sequence number, this packet ack="
+					+ std::to_string(packetAckNumber)
+					+ ", expected="
+					+ std::to_string(ourSequenceNumber)
+				);
+			}
 			if (packetSequenceNumber != ackNumber) {
 				Logger::get().log(
 					"Received unexpected packet, this packet seq="
@@ -152,8 +163,6 @@ class TcpConnection : public Connection {
 				sendDataToRemote(std::vector(tcpLayer->getLayerPayload(), tcpLayer->getLayerPayload() + tcpLayer->getLayerPayloadSize()));
 			}
 
-			// TODO add check for expected sequence
-
 			ackNumber = packetSequenceNumber;
 			if (dataSize > 0) {
 				ackNumber += dataSize;
@@ -167,31 +176,30 @@ class TcpConnection : public Connection {
 				return;
 			}
 
-			if (tcpLayer->getTcpHeader()->finFlag == 1) {
-				if (tcpStatus == TcpStatus::FIN_SENT) {
-					remoteSocketStatus = RemoteSocketStatus::CLOSED;
-					ourSequenceNumber += 1;
-					ackNumber += 1;
-					sendAck();
-					close();
-
-					return;
-				} else {
-					ackNumber += 1;
-					sendFinAck();
-					ourSequenceNumber += 1;
-					close();
-
-					return;
-				}
-			}
-
 			if (tcpLayer->getTcpHeader()->ackFlag == 1) {
 				if (remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 					remoteSocketStatus = RemoteSocketStatus::ESTABLISHED;
-				} else if (tcpStatus == TcpStatus::FIN_SENT) {
-					remoteSocketStatus = RemoteSocketStatus::CLOSED;
+				} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && packetAckNumber >= finSequenceNumber) {
+					tcpStatus = TcpStatus::FIN_WAIT_2;
+				} else if (tcpStatus == TcpStatus::CLOSE_WAIT) {
 					close();
+				}
+			}
+
+			if (tcpLayer->getTcpHeader()->finFlag == 1) {
+				if (tcpStatus == TcpStatus::FIN_WAIT_2) {
+					ackNumber += 1;
+					sendAck();
+
+					close();
+
+					return;
+				} else if (tcpStatus != TcpStatus::FIN_WAIT_1) {
+					Logger::get().log("Remote side is initiating TCP close");
+					sendFinAck();
+					finSequenceNumber = ourSequenceNumber.load();
+					ourSequenceNumber += 1;
+					tcpStatus = TcpStatus::CLOSE_WAIT;
 				}
 			}
 		}
@@ -286,11 +294,15 @@ class TcpConnection : public Connection {
 
 			if (length == 0) {
 				// Connection closed
-				if (tcpStatus == TcpStatus::FIN_SENT) {
+				if (tcpStatus == TcpStatus::FIN_WAIT_1 || tcpStatus == TcpStatus::FIN_WAIT_2) {
 					return {};
 				}
+				Logger::get().log("We are initiating TCP close");
 				sendFinAck();
-				tcpStatus = TcpStatus::FIN_SENT;
+				finSequenceNumber = ourSequenceNumber.load();
+				ourSequenceNumber += 1;
+
+				tcpStatus = TcpStatus::FIN_WAIT_1;
 
 				return {};
 			}
@@ -329,14 +341,14 @@ class TcpConnection : public Connection {
 			tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(windowSize);
 			auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
 
-			auto udpPacket = std::make_unique<pcpp::Packet>(65'535);
-			udpPacket->addLayer(ipLayer, true);
-			udpPacket->addLayer(tcpLayer, true);
-			udpPacket->addLayer(payloadLayer, true);
+			auto tcpPacket = std::make_unique<pcpp::Packet>(65'535);
+			tcpPacket->addLayer(ipLayer, true);
+			tcpPacket->addLayer(tcpLayer, true);
+			tcpPacket->addLayer(payloadLayer, true);
 
-			udpPacket->computeCalculateFields();
+			tcpPacket->computeCalculateFields();
 
-			return udpPacket;
+			return tcpPacket;
 		}
 
 		[[nodiscard]] unsigned int getAckNumber() const {

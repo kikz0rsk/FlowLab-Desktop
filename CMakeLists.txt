@@ -34,6 +34,7 @@ set(PROJECT_SOURCES
         include/logger.h
         include/ndpi.h
         include/packet_utils.h
+        include/syntax_highlighter.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -96,6 +97,7 @@ install(TARGETS network-analyzer-gui
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(network-analyzer-gui)
 endif()
+
 
 add_custom_command(
         TARGET network-analyzer-gui POST_BUILD

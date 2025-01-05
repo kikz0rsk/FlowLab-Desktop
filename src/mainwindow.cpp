@@ -15,6 +15,7 @@
 #include "packet_utils.h"
 #include "tcp_connection.h"
 #include "udp_connection.h"
+#include "syntax_highlighter.h"
 
 MainWindow::MainWindow(QWidget *parent)	:
 	QMainWindow(parent)
@@ -33,10 +34,19 @@ MainWindow::MainWindow(QWidget *parent)	:
 		throw std::runtime_error("Failed to initialize nDPI");
 	}
 
+	pcapWriter.emplace("output.pcapng");
+	if (!pcapWriter->open())
+	{
+		std::cerr << "Cannot open output.pcap for writing" << std::endl;
+		exit(210);
+	}
+
 	ndpi::ndpi_protocol_bitmask_struct_t all;
 	NDPI_BITMASK_SET_ALL(all);
 	ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
 	ndpi::ndpi_finalize_initialization(ndpiStruct);
+
+	auto *highlighter = new FlowlabSyntaxHighlighter(ui->connectionStream);
 
 	ui->listView->setModel(&model);
 	thread = std::thread(
@@ -195,6 +205,8 @@ void MainWindow::sendFromDevice() {
 		return;
 	}
 
+
+
 	auto connection = connections.find(ipv4Layer->getSrcIPAddress(), ipv4Layer->getDstIPAddress(), srcPort, dstPort, protocol);
 	bool newConnection = false;
 	if (!connection) {
@@ -210,7 +222,7 @@ void MainWindow::sendFromDevice() {
 
 					auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
 					tcpLayer->getTcpHeader()->rstFlag = 1;
-					tcpLayer->getTcpHeader()->ackNumber = tcpLayer->getTcpHeader()->sequenceNumber;
+					tcpLayer->getTcpHeader()->ackNumber = tcpLayer->getTcpHeader()->sequenceNumber + tcpLayer->getLayerPayloadSize();
 					tcpLayer->getTcpHeader()->sequenceNumber = tcpLayer->getTcpHeader()->ackNumber;
 					tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(4096);
 
@@ -288,6 +300,7 @@ void MainWindow::listView_activated(const QModelIndex &index) {
 	ui->destinationIpText->setText(QString::fromStdString(connection->getDstIp().toString()));
 	ui->sourcePortText->setText(QString::number((uint) connection->getSrcPort()));
 	ui->destinationPortText->setText(QString::number(connection->getDstPort()));
+	auto qstr = QString::fromUtf8((const char *) connection->getDataStream().data(), connection->getDataStream().size());
 	if (showMode == 0) {
 		ui->connectionStream->setPlainText(QString::fromUtf8((const char *) connection->getDataStream().data(), connection->getDataStream().size()));
 	} else {
