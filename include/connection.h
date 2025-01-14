@@ -12,6 +12,7 @@
 #include "remote_socket_status.h"
 #include "tcp_status.h"
 #include "ndpi.h"
+#include "packet_utils.h"
 
 namespace pcpp {
 	class IPv4Layer;
@@ -94,6 +95,8 @@ class Connection {
 		virtual void sendDataToDeviceSocket(const std::vector<uint8_t> &data) = 0;
 
 		virtual void sendToDeviceSocket(const pcpp::Packet &packet) {
+			Logger::get().log("Sending: " + PacketUtils::toString(packet));
+
 			pcpp::RawPacket rawPacket{};
 			rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
 			pcapWriter->writePacket(rawPacket);

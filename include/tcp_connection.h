@@ -63,8 +63,6 @@ class TcpConnection : public Connection {
 
 			packet.computeCalculateFields();
 
-			Logger::get().log("Sending: " + PacketUtils::toString(packet));
-
 			sendToDeviceSocket(packet);
 		}
 
@@ -91,8 +89,6 @@ class TcpConnection : public Connection {
 			packet.addLayer(tcpLayer, true);
 
 			packet.computeCalculateFields();
-
-			Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
 			sendToDeviceSocket(packet);
 		}
@@ -123,10 +119,10 @@ class TcpConnection : public Connection {
 				ourSequenceNumber = distrib(gen);
 				tcpStatus = TcpStatus::SYN_RECEIVED;
 
-				const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
-				if (!windowScaleOpt.isNull()) {
-					windowSizeMultiplier = 1 << windowScaleOpt.getValueAs<uint8_t>();
-				}
+				// const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
+				// if (!windowScaleOpt.isNull()) {
+				// 	windowSizeMultiplier = 1 << windowScaleOpt.getValueAs<uint8_t>();
+				// }
 				remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
 				openSocket();
@@ -294,8 +290,6 @@ class TcpConnection : public Connection {
 
 			packet.computeCalculateFields();
 
-			Logger::get().log("Sending: " + PacketUtils::toString(packet));
-
 			sendToDeviceSocket(packet);
 		}
 
@@ -446,8 +440,6 @@ class TcpConnection : public Connection {
 			packet.addLayer(tcpLayer, true);
 
 			packet.computeCalculateFields();
-
-			Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
 			sendToDeviceSocket(packet);
 		}
