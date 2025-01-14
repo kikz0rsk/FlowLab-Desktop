@@ -34,7 +34,7 @@ MainWindow::MainWindow(QWidget *parent)	:
 		throw std::runtime_error("Failed to initialize nDPI");
 	}
 
-	pcapWriter.emplace("output.pcapng");
+	pcapWriter = std::make_shared<pcpp::PcapFileWriterDevice>("output.pcapng", pcpp::LINKTYPE_IPV4);
 	if (!pcapWriter->open())
 	{
 		std::cerr << "Cannot open output.pcap for writing" << std::endl;
@@ -133,32 +133,7 @@ void MainWindow::packetLoop() {
 
 			Logger::get().log("Read " + std::to_string(data.size()) + " bytes from socket");
 
-			size_t offset = 0;
-			while (offset < data.size()) {
-				const unsigned int length = std::min(offset + 1400, data.size()) - offset;
-				const auto packet = conn.second->encapsulateResponseDataToPacket(std::vector(data.begin() + offset, data.begin() + offset + length));
-				if (!packet) {
-					break;
-				}
-
-				Logger::get().log(
-					"Sending to: " + conn.second->getOriginHostIp().toString() + ":" + std::to_string(conn.second->getOriginHostPort()) + " " + PacketUtils::toString(*packet)
-				);
-
-				sendto(
-					socket,
-					reinterpret_cast<const char *>(packet->getRawPacketReadOnly()->getRawData()),
-					packet->getRawPacketReadOnly()->getRawDataLen(),
-					0,
-					(SOCKADDR *) &conn.second->getDestSockAddr(),
-					sizeof(conn.second->getDestSockAddr())
-				);
-
-				if (auto tcpConn = std::dynamic_pointer_cast<TcpConnection>(conn.second)) {
-					tcpConn->getOurSequenceNumber().fetch_add(length);
-				}
-				offset += length;
-			}
+			conn.second->sendDataToDeviceSocket(data);
 			Logger::get().log({});
 		}
 	}
@@ -169,7 +144,7 @@ void MainWindow::sendFromDevice() {
 
 	sockaddr_in from{};
 	int from_size = sizeof(from);
-	int length = recvfrom(socket, buffer.data(), buffer.size(), 0, (SOCKADDR *) &from, &from_size);
+	const int length = recvfrom(socket, buffer.data(), buffer.size(), 0, (SOCKADDR *) &from, &from_size);
 	if (length == SOCKET_ERROR) {
 		Logger::get().log("sendFromDevice() recvfrom() failed: " + std::to_string(WSAGetLastError()));
 
@@ -205,7 +180,7 @@ void MainWindow::sendFromDevice() {
 		return;
 	}
 
-
+	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 
 	auto connection = connections.find(ipv4Layer->getSrcIPAddress(), ipv4Layer->getDstIPAddress(), srcPort, dstPort, protocol);
 	bool newConnection = false;
@@ -222,8 +197,8 @@ void MainWindow::sendFromDevice() {
 
 					auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
 					tcpLayer->getTcpHeader()->rstFlag = 1;
-					tcpLayer->getTcpHeader()->ackNumber = tcpLayer->getTcpHeader()->sequenceNumber + tcpLayer->getLayerPayloadSize();
-					tcpLayer->getTcpHeader()->sequenceNumber = tcpLayer->getTcpHeader()->ackNumber;
+					tcpLayer->getTcpHeader()->ackNumber = 0;
+					tcpLayer->getTcpHeader()->sequenceNumber = tcpPacket->getTcpHeader()->ackNumber;
 					tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(4096);
 
 					pcpp::Packet rstPacket(50);
@@ -231,6 +206,10 @@ void MainWindow::sendFromDevice() {
 					rstPacket.addLayer(tcpLayer, true);
 
 					rstPacket.computeCalculateFields();
+
+					pcpp::RawPacket rawPacket{};
+					rawPacket.initWithRawData(rstPacket.getRawPacket()->getRawData(), rstPacket.getRawPacket()->getRawDataLen(), rstPacket.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
+					pcapWriter->writePacket(rawPacket);
 
 					sendto(
 						socket,
@@ -255,7 +234,6 @@ void MainWindow::sendFromDevice() {
 				socket,
 				ndpiStruct
 			);
-			connections.addConnection(connection);
 		} else {
 			connection = std::make_shared<UdpConnection>(
 				pcpp::IPAddress(pcpp::IPv4Address((uint32_t) from.sin_addr.S_un.S_addr)),
@@ -267,8 +245,10 @@ void MainWindow::sendFromDevice() {
 				socket,
 				ndpiStruct
 			);
-			connections.addConnection(connection);
 		}
+
+		connection->setPcapWriter(pcapWriter);
+		connections.addConnection(connection);
 		newConnection = true;
 	}
 

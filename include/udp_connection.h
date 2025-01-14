@@ -132,4 +132,23 @@ public:
 
 		return udpPacket;
 	}
+
+	void sendDataToDeviceSocket(const std::vector<uint8_t> &data) override {
+		size_t offset = 0;
+		while (offset < data.size()) {
+			const unsigned int length = std::min(offset + MAX_SEGMENT_SIZE, data.size()) - offset;
+			const auto packet = encapsulateResponseDataToPacket(std::vector(data.begin() + offset, data.begin() + offset + length));
+			if (!packet) {
+				break;
+			}
+
+			Logger::get().log(
+				"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
+			);
+
+			sendToDeviceSocket(*packet);
+
+			offset += length;
+		}
+	}
 };

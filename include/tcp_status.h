@@ -3,6 +3,7 @@
 enum class TcpStatus {
 	CLOSED = 0,
 	SYN_RECEIVED,
+	ESTABLISHED,
 	FIN_WAIT_1,
 	FIN_WAIT_2,
 	CLOSE_WAIT

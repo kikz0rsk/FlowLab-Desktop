@@ -5,7 +5,9 @@
 #include <pcapplusplus/IpAddress.h>
 #include <winsock2.h>
 #include <pcapplusplus/Packet.h>
+#include <pcapplusplus/PcapFileDevice.h>
 
+#include "logger.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "tcp_status.h"
@@ -16,6 +18,9 @@ namespace pcpp {
 }
 
 class Connection {
+	public:
+		static constexpr unsigned int MAX_SEGMENT_SIZE = 1430;
+
 	protected:
 		pcpp::IPAddress originHostIp;
 		std::string originHostIpStr;
@@ -43,6 +48,7 @@ class Connection {
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
 		ndpi::ndpi_flow_struct *ndpiFlow = nullptr;
 		ndpi::ndpi_protocol ndpiProtocol{};
+		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
 
 	public:
 		Connection(
@@ -85,7 +91,13 @@ class Connection {
 
 		virtual std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) = 0;
 
+		virtual void sendDataToDeviceSocket(const std::vector<uint8_t> &data) = 0;
+
 		virtual void sendToDeviceSocket(const pcpp::Packet &packet) {
+			pcpp::RawPacket rawPacket{};
+			rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
+			pcapWriter->writePacket(rawPacket);
+
 			sendto(
 				deviceSocket,
 				reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
@@ -208,5 +220,9 @@ class Connection {
 
 		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const {
 			return ndpiProtocol;
+		}
+
+		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter) {
+			Connection::pcapWriter = pcapWriter;
 		}
 };
