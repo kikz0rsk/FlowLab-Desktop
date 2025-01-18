@@ -32,7 +32,6 @@ class Connection {
 		uint16_t srcPort{};
 		uint16_t dstPort{};
 		std::atomic<RemoteSocketStatus> remoteSocketStatus = RemoteSocketStatus::CLOSED;
-		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
 		std::chrono::system_clock::time_point createdTime = std::chrono::system_clock::now();
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
@@ -191,14 +190,6 @@ class Connection {
 
 		void setRemoteSocketStatus(RemoteSocketStatus status) {
 			remoteSocketStatus = status;
-		}
-
-		[[nodiscard]] TcpStatus getTcpStatus() const {
-			return tcpStatus;
-		}
-
-		void setTcpStatus(TcpStatus tcpStatus) {
-			Connection::tcpStatus = tcpStatus;
 		}
 
 		[[nodiscard]] SOCKET getSocket() const {

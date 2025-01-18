@@ -18,6 +18,7 @@ class TcpConnection : public Connection {
 		unsigned int unAckedBytes = 0;
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
+		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
 
 	public:
 		TcpConnection(
@@ -37,6 +38,19 @@ class TcpConnection : public Connection {
 			if (connectingThread.joinable()) {
 				connectingThread.join();
 			}
+		}
+
+		void resetState() {
+			ackNumber = 0;
+			ourSequenceNumber = 0;
+			ourWindowSize = 65'535;
+			remoteWindowSize = 65'535;
+			finSequenceNumber = 0;
+			unAckedBytes = 0;
+			windowSizeMultiplier = 1;
+			shouldSendFinOnAckedEverything = false;
+			remoteSocketStatus = RemoteSocketStatus::CLOSED;
+			tcpStatus = TcpStatus::CLOSED;
 		}
 
 		void closeRemoteSocket() {
@@ -133,6 +147,13 @@ class TcpConnection : public Connection {
 			remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
 			if (packetAckNumber != ourSequenceNumber) {
+				if (tcpLayer->getTcpHeader()->rstFlag == 1) {
+					closeRemoteSocket();
+					resetState();
+
+					return;
+				}
+
 				Logger::get().log(
 					"Packet ack number does not match our sequence number, this packet ack="
 					+ std::to_string(packetAckNumber)
@@ -172,6 +193,7 @@ class TcpConnection : public Connection {
 
 			if (tcpLayer->getTcpHeader()->rstFlag == 1) {
 				closeRemoteSocket();
+				resetState();
 
 				return;
 			}
@@ -187,6 +209,7 @@ class TcpConnection : public Connection {
 					tcpStatus = TcpStatus::FIN_WAIT_2;
 				} else if (tcpStatus == TcpStatus::CLOSE_WAIT) {
 					closeRemoteSocket();
+					resetState();
 				}
 			}
 
@@ -196,6 +219,7 @@ class TcpConnection : public Connection {
 					sendAck();
 
 					closeRemoteSocket();
+					resetState();
 
 					return;
 				} else if (tcpStatus == TcpStatus::ESTABLISHED) {
@@ -246,7 +270,7 @@ class TcpConnection : public Connection {
 
 				return;
 			}
-			bool nodelay = true;
+			const bool nodelay = true;
 			setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char *>(&nodelay), sizeof(nodelay));
 			auto dstIpStr = dstIp.toString();
 			auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
@@ -302,7 +326,7 @@ class TcpConnection : public Connection {
 				return {};
 			}
 
-			long long bytesToRead = static_cast<long long>(this->remoteWindowSize) - static_cast<long long>(unAckedBytes);
+			long long bytesToRead = static_cast<long long>(this->remoteWindowSize) - static_cast<long long>(unAckedBytes) - 1000;
 			if (bytesToRead <= 0) {
 				// Delay read if we would exceed remote window size
 				return {};
@@ -449,5 +473,13 @@ class TcpConnection : public Connection {
 			ioctlsocket(socket,FIONREAD, &bytes);
 
 			return bytes;
+		}
+
+		[[nodiscard]] TcpStatus getTcpStatus() const {
+			return tcpStatus.load();
+		}
+
+		void setTcpStatus(TcpStatus tcpStatus) {
+			this->tcpStatus = tcpStatus;
 		}
 };
