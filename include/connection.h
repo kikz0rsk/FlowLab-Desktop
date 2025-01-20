@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <pcapplusplus/IpAddress.h>
 #include <winsock2.h>
@@ -10,9 +12,7 @@
 #include "logger.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
-#include "tcp_status.h"
 #include "ndpi.h"
-#include "packet_utils.h"
 
 namespace pcpp {
 	class IPv4Layer;
@@ -61,27 +61,9 @@ class Connection {
 			Protocol protocol,
 			SOCKET deviceSocket,
 			ndpi::ndpi_detection_module_struct *ndpiStruct
-		)	:
-			originHostIp(originHostIp),
-			originHostIpStr(originHostIp.toString()),
-			originHostPort(originHostPort),
-			srcIp(src_ip),
-			dstIp(dst_ip),
-			srcPort(src_port),
-			dstPort(dst_port),
-			protocol(protocol),
-			deviceSocket(deviceSocket),
-			ndpiStr(ndpiStruct) {
-			dataStream.reserve(5'000);
-			originSockAddr = sockaddr_in{AF_INET, htons(originHostPort)};
-			originSockAddr.sin_addr.s_addr = inet_addr(originHostIpStr.c_str());
+		);
 
-			ndpiFlow = (ndpi::ndpi_flow_struct *) calloc(1, sizeof(ndpi::ndpi_flow_struct));
-		}
-
-		virtual ~Connection() {
-			ndpi::ndpi_free_flow(ndpiFlow);
-		}
+		virtual ~Connection();
 
 		virtual void processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) = 0;
 
@@ -89,134 +71,61 @@ class Connection {
 
 		virtual std::vector<uint8_t> read() = 0;
 
+		virtual void writeEvent() {}
+
+		virtual void exceptionEvent() {}
+
 		virtual std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) = 0;
 
 		virtual void sendDataToDeviceSocket(const std::vector<uint8_t> &data) = 0;
 
-		virtual void sendToDeviceSocket(const pcpp::Packet &packet) {
-			Logger::get().log("Sending: " + PacketUtils::toString(packet));
+		virtual void sendToDeviceSocket(const pcpp::Packet &packet);
 
-			pcpp::RawPacket rawPacket{};
-			rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
-			pcapWriter->writePacket(rawPacket);
+		void processDpi(const unsigned char *packetPtr, const unsigned short packetLen);
 
-			sendto(
-				deviceSocket,
-				reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
-				packet.getRawPacketReadOnly()->getRawDataLen(),
-				0,
-				(SOCKADDR *) &originSockAddr,
-				sizeof(originSockAddr)
-			);
+		[[nodiscard]] virtual bool shouldClose() const;
 
-			processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
-			receivedPacketCount++;
-		}
+		[[nodiscard]] std::shared_lock<std::shared_mutex> getReadLock();
 
-		void processDpi(const unsigned char* packetPtr, const unsigned short packetLen) {
-			this->ndpiProtocol = ndpi::ndpi_detection_process_packet(
-				this->ndpiStr,
-				this->ndpiFlow,
-				packetPtr,
-				packetLen,
-				std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()),
-				nullptr
-			);
-		}
+		[[nodiscard]] std::unique_lock<std::shared_mutex> getWriteLock();
 
-		[[nodiscard]] virtual bool shouldClose() const {
-			if (lastPacketSentTime.has_value()) {
-				return std::chrono::system_clock::now() - *lastPacketSentTime > std::chrono::seconds(30);
-			} else {
-				return std::chrono::system_clock::now() - createdTime > std::chrono::seconds(30);
-			}
-		}
+		[[nodiscard]] const Protocol &getProtocol() const;
 
-		[[nodiscard]] std::shared_lock<std::shared_mutex> getReadLock() {
-			return std::shared_lock(mutex);
-		}
+		[[nodiscard]] const std::chrono::system_clock::time_point &getCreatedTime() const;
 
-		[[nodiscard]] std::unique_lock<std::shared_mutex> getWriteLock() {
-			return std::unique_lock(mutex);
-		}
+		[[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &getLastPacketSentTime() const;
 
-		[[nodiscard]] const Protocol &getProtocol() const {
-			return protocol;
-		}
+		[[nodiscard]] const pcpp::IPAddress &getSrcIp() const;
 
-		[[nodiscard]] const std::chrono::system_clock::time_point &getCreatedTime() const {
-			return createdTime;
-		}
+		void setSrcIp(const pcpp::IPAddress &srcIp);
 
-		[[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &getLastPacketSentTime() const {
-			return lastPacketSentTime;
-		}
+		[[nodiscard]] const pcpp::IPAddress &getDstIp() const;
 
-		[[nodiscard]] const pcpp::IPAddress &getSrcIp() const {
-			return srcIp;
-		}
+		void setDstIp(const pcpp::IPAddress &dstIp);
 
-		void setSrcIp(const pcpp::IPAddress &srcIp) {
-			Connection::srcIp = srcIp;
-		}
+		[[nodiscard]] uint16_t getSrcPort() const;
 
-		[[nodiscard]] const pcpp::IPAddress &getDstIp() const {
-			return dstIp;
-		}
+		void setSrcPort(uint16_t srcPort);
 
-		void setDstIp(const pcpp::IPAddress &dstIp) {
-			Connection::dstIp = dstIp;
-		}
+		[[nodiscard]] uint16_t getDstPort() const;
 
-		[[nodiscard]] uint16_t getSrcPort() const {
-			return srcPort;
-		}
+		void setDstPort(uint16_t dstPort);
 
-		void setSrcPort(uint16_t srcPort) {
-			Connection::srcPort = srcPort;
-		}
+		[[nodiscard]] RemoteSocketStatus getRemoteSocketStatus() const;
 
-		[[nodiscard]] uint16_t getDstPort() const {
-			return dstPort;
-		}
+		void setRemoteSocketStatus(RemoteSocketStatus status);
 
-		void setDstPort(uint16_t dstPort) {
-			Connection::dstPort = dstPort;
-		}
+		[[nodiscard]] SOCKET getSocket() const;
 
-		[[nodiscard]] RemoteSocketStatus getRemoteSocketStatus() const {
-			return remoteSocketStatus;
-		}
+		[[nodiscard]] const std::vector<uint8_t> &getDataStream() const;
 
-		void setRemoteSocketStatus(RemoteSocketStatus status) {
-			remoteSocketStatus = status;
-		}
+		[[nodiscard]] const pcpp::IPAddress &getOriginHostIp() const;
 
-		[[nodiscard]] SOCKET getSocket() const {
-			return socket;
-		}
+		[[nodiscard]] uint16_t getOriginHostPort() const;
 
-		[[nodiscard]] const std::vector<uint8_t> &getDataStream() const {
-			return dataStream;
-		}
+		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
 
-		[[nodiscard]] const pcpp::IPAddress &getOriginHostIp() const {
-			return originHostIp;
-		}
+		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const;
 
-		[[nodiscard]] uint16_t getOriginHostPort() const {
-			return originHostPort;
-		}
-
-		[[nodiscard]] const sockaddr_in& getDestSockAddr() const {
-			return originSockAddr;
-		}
-
-		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const {
-			return ndpiProtocol;
-		}
-
-		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter) {
-			Connection::pcapWriter = pcapWriter;
-		}
+		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter);
 };

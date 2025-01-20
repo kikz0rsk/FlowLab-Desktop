@@ -20,10 +20,26 @@ set(PROJECT_SOURCES
         src/main.cpp
         src/mainwindow.cpp
         src/logswindow.cpp
+        src/dnspage.cpp
+        src/connections_page.cpp
         include/mainwindow.h
         include/logswindow.h
+        include/dnspage.h
+        include/connections_page.h
+
+        src/syntax_highlighter.cpp
+        src/connection_manager.cpp
+        src/logger.cpp
+        src/connection.cpp
+        src/tcp_connection.cpp
+        src/udp_connection.cpp
+        src/packet_utils.cpp
+
         mainwindow.ui
         logswindow.ui
+        dnspage.ui
+        connections_page.ui
+
         include/connection.h
         include/remote_socket_status.h
         include/tcp_status.h
@@ -35,6 +51,7 @@ set(PROJECT_SOURCES
         include/ndpi.h
         include/packet_utils.h
         include/syntax_highlighter.h
+        include/pcap_writer.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -91,7 +108,7 @@ set_target_properties(network-analyzer-gui PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
-qt_add_ui(network-analyzer-gui SOURCES mainwindow.ui logswindow.ui)
+qt_add_ui(network-analyzer-gui SOURCES mainwindow.ui logswindow.ui dnspage.ui connections_page.ui)
 
 include(GNUInstallDirs)
 install(TARGETS network-analyzer-gui

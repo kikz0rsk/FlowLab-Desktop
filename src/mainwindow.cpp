@@ -1,5 +1,3 @@
-#include "mainwindow.h"
-#include "./ui_mainwindow.h"
 #include <QDebug>
 #include <array>
 #include <iostream>
@@ -9,25 +7,32 @@
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/UdpLayer.h>
+#include <pcapplusplus/SystemUtils.h>
 
+#include "mainwindow.h"
+
+#include "connections_page.h"
+#include "./ui_mainwindow.h"
 #include "logger.h"
 #include "logswindow.h"
+#include "dnspage.h"
 #include "packet_utils.h"
 #include "tcp_connection.h"
 #include "udp_connection.h"
 #include "syntax_highlighter.h"
 
 MainWindow::MainWindow(QWidget *parent)	:
-	QMainWindow(parent)
-	, ui(new Ui::MainWindow) {
+	QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
-	connect(ui->listView, &QListView::activated, this, &MainWindow::listView_activated);
-	connect(ui->listView, &QListView::clicked, this, &MainWindow::listView_activated);
+
+	connectionsPage = new ConnectionsPage(*this);
+	dnsPage = new DnsPage(*this);
+
+	ui->tabWidget->addTab(connectionsPage, "Connections");
+	ui->tabWidget->addTab(dnsPage, "DNS");
+
 	connect(ui->actionShow_logs, &QAction::triggered, this, &MainWindow::actionShow_logs_clicked);
 	connect(this, &MainWindow::setStatusBarMessage, this, &MainWindow::_setStatusBarMessage);
-
-	connect(ui->utf8Button, &QPushButton::clicked, this, &MainWindow::utf8Button_clicked);
-	connect(ui->utf16Button, &QPushButton::clicked, this, &MainWindow::utf16Button_clicked);
 
 	ndpiStruct = ndpi::ndpi_init_detection_module(nullptr);
 	if (ndpiStruct == nullptr) {
@@ -35,8 +40,7 @@ MainWindow::MainWindow(QWidget *parent)	:
 	}
 
 	pcapWriter = std::make_shared<pcpp::PcapFileWriterDevice>("output.pcapng", pcpp::LINKTYPE_IPV4);
-	if (!pcapWriter->open())
-	{
+	if (!pcapWriter->open()){
 		std::cerr << "Cannot open output.pcap for writing" << std::endl;
 		exit(210);
 	}
@@ -46,9 +50,6 @@ MainWindow::MainWindow(QWidget *parent)	:
 	ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
 	ndpi::ndpi_finalize_initialization(ndpiStruct);
 
-	auto *highlighter = new FlowlabSyntaxHighlighter(ui->connectionStream);
-
-	ui->listView->setModel(&model);
 	thread = std::thread(
 		[this] {
 			threadRoutine();
@@ -103,38 +104,48 @@ std::string MainWindow::getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddr
 
 void MainWindow::packetLoop() {
 	while (!stopFlag.load()) {
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(socket, &fds);
+		fd_set readFds;
+		fd_set writeFds;
+		fd_set exceptionFds;
+		FD_ZERO(&readFds);
+		FD_ZERO(&writeFds);
+		FD_ZERO(&exceptionFds);
+		FD_SET(socket, &readFds);
 		for (const auto &conn: connections.getConnections()) {
 			if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 				continue;
 			}
-			FD_SET(conn.second->getSocket(), &fds);
+			FD_SET(conn.second->getSocket(), &readFds);
+			FD_SET(conn.second->getSocket(), &writeFds);
+			FD_SET(conn.second->getSocket(), &exceptionFds);
 		}
 
 		const TIMEVAL timeout{0, 500'000};
-		select(0, &fds, nullptr, nullptr, &timeout);
+		select(0, &readFds, nullptr, nullptr, &timeout);
 
-		if (FD_ISSET(socket, &fds)) {
+		if (FD_ISSET(socket, &readFds)) {
 			sendFromDevice();
 			Logger::get().log({});
 		}
 
 		for (auto &conn: connections.getConnections()) {
-			if (!FD_ISSET(conn.second->getSocket(), &fds)) {
-				continue;
+			if (FD_ISSET(conn.second->getSocket(), &readFds)) {
+				const auto data = conn.second->read();
+				if (data.empty()) {
+					continue;
+				}
+
+				Logger::get().log("Read " + std::to_string(data.size()) + " bytes from socket");
+
+				conn.second->sendDataToDeviceSocket(data);
+				Logger::get().log({});
 			}
-
-			const auto data = conn.second->read();
-			if (data.empty()) {
-				continue;
+			if (FD_ISSET(conn.second->getSocket(), &writeFds)) {
+				conn.second->writeEvent();
 			}
-
-			Logger::get().log("Read " + std::to_string(data.size()) + " bytes from socket");
-
-			conn.second->sendDataToDeviceSocket(data);
-			Logger::get().log({});
+			if (FD_ISSET(conn.second->getSocket(), &exceptionFds)) {
+				conn.second->exceptionEvent();
+			}
 		}
 	}
 }
@@ -151,8 +162,10 @@ void MainWindow::sendFromDevice() {
 		return;
 	}
 
-	timeval time{};
-	pcpp::RawPacket packet(reinterpret_cast<const uint8_t *>(buffer.data()), length, time, false, pcpp::LINKTYPE_IPV4);
+	long sec;
+	long usec;
+	pcpp::clockGetTime(sec, usec);
+	pcpp::RawPacket packet(reinterpret_cast<const uint8_t *>(buffer.data()), length, timeval { sec, usec }, false, pcpp::LINKTYPE_IPV4);
 	pcpp::Packet parsedPacket(&packet);
 	const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer());
 	if (ipv4Layer == nullptr) {
@@ -208,7 +221,12 @@ void MainWindow::sendFromDevice() {
 					rstPacket.computeCalculateFields();
 
 					pcpp::RawPacket rawPacket{};
-					rawPacket.initWithRawData(rstPacket.getRawPacket()->getRawData(), rstPacket.getRawPacket()->getRawDataLen(), rstPacket.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
+					rawPacket.initWithRawData(
+						rstPacket.getRawPacket()->getRawData(),
+						rstPacket.getRawPacket()->getRawDataLen(),
+						rstPacket.getRawPacket()->getPacketTimeStamp(),
+						pcpp::LINKTYPE_IPV4
+					);
 					pcapWriter->writePacket(rawPacket);
 
 					sendto(
@@ -253,54 +271,21 @@ void MainWindow::sendFromDevice() {
 	}
 
 	if (newConnection) {
-		auto *item = new QStandardItem(
-			QString::fromStdString(
-				connection->getSrcIp().toString()
-				+ ":" + std::to_string(connection->getSrcPort()) + " -> "
-				+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
-				+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
-			)
-		);
-		item->setData(QVariant::fromValue(connection));
-		model.insertRow(0, item);
+		connectionsPage->addConnection(connection);
+		// auto *item = new QStandardItem(
+		// 	QString::fromStdString(
+		// 		connection->getSrcIp().toString()
+		// 		+ ":" + std::to_string(connection->getSrcPort()) + " -> "
+		// 		+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
+		// 		+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
+		// 	)
+		// );
+		// item->setData(QVariant::fromValue(connection));
+		// model.insertRow(0, item);
 	}
 
 	connection->processPacketFromDevice(ipv4Layer);
 	Logger::get().log({});
-}
-
-void MainWindow::listView_activated(const QModelIndex &index) {
-	auto connection = index.data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
-	if (!connection) {
-		return;
-	}
-
-	auto readLock = connection->getReadLock();
-	ui->sourceIpText->setText(QString::fromStdString(connection->getSrcIp().toString()));
-	ui->destinationIpText->setText(QString::fromStdString(connection->getDstIp().toString()));
-	ui->sourcePortText->setText(QString::number((uint) connection->getSrcPort()));
-	ui->destinationPortText->setText(QString::number(connection->getDstPort()));
-	auto qstr = QString::fromUtf8((const char *) connection->getDataStream().data(), connection->getDataStream().size());
-	if (showMode == 0) {
-		ui->connectionStream->setPlainText(QString::fromUtf8((const char *) connection->getDataStream().data(), connection->getDataStream().size()));
-	} else {
-		auto vec = std::vector(connection->getDataStream().data(), connection->getDataStream().data() + connection->getDataStream().size());
-		if (vec.size() % 2 == 1) {
-			vec.emplace_back(0);
-		}
-		const auto length = vec.size() / 2;
-		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) connection->getDataStream().data(), length));
-	}
-
-	std::array<char, 60> buffer{};
-	ndpi::ndpi_protocol2name(ndpiStruct, connection->getNdpiProtocol(), buffer.data(), buffer.size());
-	ui->protocolText->setText(QString::fromUtf8(buffer.data()));
-
-	if (auto tcpConnection = std::dynamic_pointer_cast<TcpConnection>(connection)) {
-		ui->tcpStatusText->setText(QString::fromStdString(remoteSocketStatusToString(tcpConnection->getRemoteSocketStatus())));
-	} else {
-		ui->tcpStatusText->setText("");
-	}
 }
 
 void MainWindow::actionShow_logs_clicked() {
@@ -315,22 +300,4 @@ void MainWindow::actionShow_logs_clicked() {
 
 void MainWindow::_setStatusBarMessage(std::string msg) {
 	ui->statusBar->showMessage(QString::fromStdString(msg));
-}
-
-void MainWindow::utf8Button_clicked() {
-	showMode = 0;
-	ui->utf8Button->setChecked(true);
-	ui->utf16Button->setChecked(false);
-
-	// update the view
-	listView_activated(ui->listView->currentIndex());
-}
-
-void MainWindow::utf16Button_clicked() {
-	showMode = 1;
-	ui->utf8Button->setChecked(false);
-	ui->utf16Button->setChecked(true);
-
-	// update the view
-	listView_activated(ui->listView->currentIndex());
 }
