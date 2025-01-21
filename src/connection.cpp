@@ -42,6 +42,11 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
 	pcapWriter->writePacket(rawPacket);
 
+	const auto dnsLayer = packet.getLayerOfType<pcpp::DnsLayer>();
+	if (dnsLayer) {
+		dnsManager->processDns(*dnsLayer);
+	}
+
 	sendto(
 		deviceSocket,
 		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
@@ -160,4 +165,8 @@ ndpi::ndpi_protocol Connection::getNdpiProtocol() const {
 
 void Connection::setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter) {
 	Connection::pcapWriter = pcapWriter;
+}
+
+void Connection::setDnsManager(DnsManager *dnsManager) {
+	this->dnsManager = dnsManager;
 }

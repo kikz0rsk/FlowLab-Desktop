@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)	:
 	ui->setupUi(this);
 
 	connectionsPage = new ConnectionsPage(*this);
-	dnsPage = new DnsPage(*this);
+	dnsPage = new DnsPage(*this, dnsManager);
 
 	ui->tabWidget->addTab(connectionsPage, "Connections");
 	ui->tabWidget->addTab(dnsPage, "DNS");
@@ -162,10 +162,9 @@ void MainWindow::sendFromDevice() {
 		return;
 	}
 
-	long sec;
-	long usec;
-	pcpp::clockGetTime(sec, usec);
-	pcpp::RawPacket packet(reinterpret_cast<const uint8_t *>(buffer.data()), length, timeval { sec, usec }, false, pcpp::LINKTYPE_IPV4);
+	timeval time{};
+	gettimeofday(&time, nullptr);
+	pcpp::RawPacket packet(reinterpret_cast<const uint8_t *>(buffer.data()), length, time, false, pcpp::LINKTYPE_IPV4);
 	pcpp::Packet parsedPacket(&packet);
 	const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer());
 	if (ipv4Layer == nullptr) {
@@ -194,6 +193,10 @@ void MainWindow::sendFromDevice() {
 	}
 
 	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
+	const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>();
+	if (dnsLayer) {
+		dnsManager.processDns(*dnsLayer);
+	}
 
 	auto connection = connections.find(ipv4Layer->getSrcIPAddress(), ipv4Layer->getDstIPAddress(), srcPort, dstPort, protocol);
 	bool newConnection = false;
@@ -266,6 +269,7 @@ void MainWindow::sendFromDevice() {
 		}
 
 		connection->setPcapWriter(pcapWriter);
+		connection->setDnsManager(&dnsManager);
 		connections.addConnection(connection);
 		newConnection = true;
 	}

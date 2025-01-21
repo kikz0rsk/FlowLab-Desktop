@@ -9,6 +9,7 @@
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
+#include "dns_manager.h"
 #include "logger.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
@@ -49,6 +50,7 @@ class Connection {
 		ndpi::ndpi_flow_struct *ndpiFlow = nullptr;
 		ndpi::ndpi_protocol ndpiProtocol{};
 		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
+		DnsManager* dnsManager;
 
 	public:
 		Connection(
@@ -81,7 +83,7 @@ class Connection {
 
 		virtual void sendToDeviceSocket(const pcpp::Packet &packet);
 
-		void processDpi(const unsigned char *packetPtr, const unsigned short packetLen);
+		void processDpi(const unsigned char *packetPtr, unsigned short packetLen);
 
 		[[nodiscard]] virtual bool shouldClose() const;
 
@@ -128,4 +130,6 @@ class Connection {
 		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const;
 
 		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter);
+
+		void setDnsManager(DnsManager *dnsManager);
 };

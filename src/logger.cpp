@@ -5,7 +5,6 @@
 Logger::~Logger() = default;
 
 Logger::Logger() {
-	logs.reserve(100);
 }
 
 Logger & Logger::get() {

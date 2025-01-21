@@ -8,6 +8,7 @@
 
 #include "connection.h"
 #include "connection_manager.h"
+#include "dns_manager.h"
 #include "logswindow.h"
 
 class DnsPage;
@@ -45,6 +46,7 @@ class MainWindow : public QMainWindow
 		std::atomic_bool stopFlag = false;
 		std::unique_ptr<LogsWindow> logsWindow;
 		ConnectionManager connections;
+		DnsManager dnsManager;
 
 		DnsPage *dnsPage;
 		ConnectionsPage *connectionsPage;

@@ -16,61 +16,89 @@
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
     <widget class="QSplitter" name="splitter">
-     <property name="frameShape">
-      <enum>QFrame::Shape::NoFrame</enum>
-     </property>
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
-     <property name="handleWidth">
-      <number>4</number>
-     </property>
-     <widget class="QListView" name="listView"/>
+     <widget class="QTableView" name="dnsList"/>
      <widget class="QWidget" name="formWidget" native="true">
-      <layout class="QFormLayout" name="formLayout">
-       <item row="0" column="0">
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>Domain</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="domainText">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_2">
-         <property name="text">
-          <string>IP Address</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="ipAddressText">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_3">
-         <property name="text">
-          <string>Country</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="countryText">
-         <property name="text">
-          <string/>
-         </property>
-        </widget>
-       </item>
-      </layout>
+      <widget class="QLabel" name="label">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>9</y>
+         <width>42</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Domain</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="domainText">
+       <property name="geometry">
+        <rect>
+         <x>59</x>
+         <y>9</y>
+         <width>16</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_2">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>31</y>
+         <width>44</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Answers</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="answersText">
+       <property name="geometry">
+        <rect>
+         <x>59</x>
+         <y>31</y>
+         <width>16</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_3">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>53</y>
+         <width>43</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Country</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="countryText">
+       <property name="geometry">
+        <rect>
+         <x>59</x>
+         <y>53</y>
+         <width>16</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
      </widget>
     </widget>
    </item>

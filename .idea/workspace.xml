@@ -46,16 +46,18 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="">
+    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="separate to cpp files, dns page">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dnspage.ui" beforeDir="false" afterPath="$PROJECT_DIR$/dnspage.ui" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/connection.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/dnspage.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/dnspage.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/logger.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/logger.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/mainwindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/mainwindow.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/tcp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/tcp_connection.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/tcp_status.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/tcp_status.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/udp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/udp_connection.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/connection.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dnspage.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/dnspage.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/logger.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/logger.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/mainwindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/mainwindow.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vcpkg.json" beforeDir="false" afterPath="$PROJECT_DIR$/vcpkg.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,12 +72,12 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/include/connection.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/connection.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logger.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logswindow.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/mainwindow.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/include/mainwindow.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock://D:/Development/projects/network-analyzer-gui/include/tcp_connection.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/tcp_connection.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/tcp_status.h" root0="FORCE_HIGHLIGHTING" />
@@ -134,13 +136,18 @@
       <recent name="D:\Development\projects\network-analyzer-gui\lib\lib" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="D:\Development\projects\network-analyzer-gui\lib\lib" />
-      <recent name="D:\Development\projects\network-analyzer-gui\src" />
       <recent name="D:\Development\projects\network-analyzer-gui\include" />
+      <recent name="D:\Development\projects\network-analyzer-gui\src" />
+      <recent name="D:\Development\projects\network-analyzer-gui\lib\lib" />
       <recent name="D:\Development\projects\network-analyzer-gui\lib\include" />
     </key>
   </component>
   <component name="RunManager" selected="CMake Application.network-analyzer-gui">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="network-analyzer-gui" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="network-analyzer-gui" TARGET_NAME="network-analyzer-gui" CONFIG_NAME="vcpkg" RUN_TARGET_PROJECT_NAME="network-analyzer-gui" RUN_TARGET_NAME="network-analyzer-gui">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
@@ -194,8 +201,45 @@
       <workItem from="1736164565281" duration="15732000" />
       <workItem from="1736420605591" duration="48000" />
       <workItem from="1736786257070" duration="15358000" />
-      <workItem from="1736847847660" duration="14046000" />
+      <workItem from="1736847847660" duration="16145000" />
+      <workItem from="1737105126419" duration="151000" />
+      <workItem from="1737205514655" duration="21861000" />
+      <workItem from="1737385643262" duration="22363000" />
+      <workItem from="1737482629543" duration="14577000" />
     </task>
+    <task id="LOCAL-00001" summary="more or less working version">
+      <option name="closed" value="true" />
+      <created>1736888303687</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1736888303687</updated>
+    </task>
+    <task id="LOCAL-00002" summary="log outgoing packet in common function">
+      <option name="closed" value="true" />
+      <created>1736890372679</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1736890372679</updated>
+    </task>
+    <task id="LOCAL-00003" summary="reset status after close">
+      <option name="closed" value="true" />
+      <created>1737218944887</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1737218944887</updated>
+    </task>
+    <task id="LOCAL-00004" summary="separate to cpp files, dns page">
+      <option name="closed" value="true" />
+      <created>1737412270958</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1737412270958</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -217,7 +261,23 @@
       </map>
     </option>
   </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="more or less working version" />
+    <MESSAGE value="log outgoing packet in common function" />
+    <MESSAGE value="reset status after close" />
+    <MESSAGE value="separate to cpp files, dns page" />
+    <option name="LAST_COMMIT_MESSAGE" value="separate to cpp files, dns page" />
+  </component>
   <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/src/dns_manager.cpp</url>
+          <line>27</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
     <watches-manager>
       <configuration name="CMakeRunConfiguration">
         <watch expression="packet.getRawPacket()-&gt;getLinkLayerType()" language="C++" />
