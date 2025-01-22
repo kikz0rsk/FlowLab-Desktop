@@ -112,7 +112,15 @@ void MainWindow::packetLoop() {
 		FD_ZERO(&exceptionFds);
 		FD_SET(socket, &readFds);
 		for (const auto &conn: connections.getConnections()) {
-			if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+			if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+				continue;
+			}
+			if (
+				conn.second->getProtocol() == Protocol::TCP
+				&& conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED
+				&& dynamic_cast<TcpConnection *>(conn.second.get()) != nullptr
+				&& dynamic_cast<TcpConnection *>(conn.second.get())->getTcpStatus() == TcpStatus::CLOSED
+			) {
 				continue;
 			}
 			FD_SET(conn.second->getSocket(), &readFds);

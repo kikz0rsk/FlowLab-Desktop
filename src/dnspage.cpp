@@ -14,6 +14,7 @@ DnsPage::DnsPage(MainWindow& mainWindow, DnsManager& dnsManager, QWidget *parent
 	connect(this, &DnsPage::addDnsEntrySignal, this, &DnsPage::addDnsToTable);
 	model = new QStandardItemModel(0, 1, this);
 	model->setHorizontalHeaderLabels({"Domain"});
+	this->ui->dnsList->setModel(model);
 }
 
 DnsPage::~DnsPage() {
