@@ -412,6 +412,7 @@ void TcpConnection::exceptionEvent() {
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		u_long mode = 0;// Blocking mode
 		ioctlsocket(socket, FIONBIO, &mode);
+		sendRst();
 		closeRemoteSocket();
 		resetState();
 	}
