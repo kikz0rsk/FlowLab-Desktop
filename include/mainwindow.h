@@ -42,7 +42,8 @@ class MainWindow : public QMainWindow
 	private:
 		Ui::MainWindow *ui;
 		std::thread thread;
-		SOCKET socket;
+		SOCKET serverSocket;
+		SOCKET clientSocket;
 		std::atomic_bool stopFlag = false;
 		std::unique_ptr<LogsWindow> logsWindow;
 		ConnectionManager connections;
@@ -57,5 +58,6 @@ class MainWindow : public QMainWindow
 		static std::string getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddress &dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol);
 		void packetLoop();
 		void sendFromDevice();
+		static void readExactly(SOCKET socket, char *buffer, int length);
 };
 #endif// MAINWINDOW_H

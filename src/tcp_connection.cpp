@@ -37,6 +37,7 @@ void TcpConnection::resetState() {
 	remoteWindowSize = 65'535;
 	finSequenceNumber = 0;
 	unAckedBytes = 0;
+	lastRemoteAckedNum = 0;
 	windowSizeMultiplier = 1;
 	shouldSendFinOnAckedEverything = false;
 	remoteSocketStatus = RemoteSocketStatus::CLOSED;
@@ -116,18 +117,19 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 	sentPacketCount++;
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
-		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
-			Logger::get().log("Received duplicate SYN packet, ignoring...");
-			sendRst();
-
-			return;
-		}
+		resetState();
+		// if (tcpStatus == TcpStatus::SYN_RECEIVED) {
+		// 	Logger::get().log("Received duplicate SYN packet, ignoring...");
+		// 	sendRst();
+		//
+		// 	return;
+		// }
 
 		ackNumber = packetSequenceNumber + 1;
-		std::random_device rd;
-		std::mt19937 gen(rd());
-		std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
-		ourSequenceNumber = distrib(gen);
+		// std::random_device rd;
+		// std::mt19937 gen(rd());
+		// std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
+		ourSequenceNumber = 100;
 		tcpStatus = TcpStatus::SYN_RECEIVED;
 
 		// const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
@@ -143,22 +145,50 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 
 	remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
-	if (packetAckNumber != ourSequenceNumber) {
+	if (tcpLayer->getTcpHeader()->ackFlag == 1) {
+		// const long long unAcked = ((static_cast<long long>(packetAckNumber) - 1) - static_cast<long long>(ourSequenceNumber.load()));
+		if (packetAckNumber >= lastRemoteAckedNum) {
+			lastRemoteAckedNum = packetAckNumber;
+		}
+		const long long unAcked = static_cast<long long>(ourSequenceNumber.load()) - static_cast<long long>(lastRemoteAckedNum);
+		unAckedBytes = unAcked > 0 ? unAcked : 0;
+		Logger::get().log("Unacked bytes: " + std::to_string(unAckedBytes));
+		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
+			tcpStatus = TcpStatus::ESTABLISHED;
+		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && lastRemoteAckedNum > finSequenceNumber) {
+			tcpStatus = TcpStatus::FIN_WAIT_2;
+		} else if (tcpStatus == TcpStatus::CLOSE_WAIT) {
+			closeRemoteSocket();
+			tcpStatus = TcpStatus::CLOSED;
+		}
+
+		if (packetAckNumber != ourSequenceNumber) {
+			// remote hasn't acked all of our messages yet
+			// if (tcpLayer->getTcpHeader()->rstFlag == 1) {
+			// 	closeRemoteSocket();
+			// 	resetState();
+			//
+			// 	return;
+			// }
+
+			Logger::get().log(
+				"Packet ack number does not match our sequence number, this packet ack="
+				+ std::to_string(packetAckNumber)
+				+ ", expected="
+				+ std::to_string(ourSequenceNumber)
+			);
+		}
+	}
+
+	if (packetSequenceNumber != ackNumber) {
+		// packet is out of order
 		if (tcpLayer->getTcpHeader()->rstFlag == 1) {
 			closeRemoteSocket();
-			resetState();
+			tcpStatus = TcpStatus::CLOSED;
 
 			return;
 		}
 
-		Logger::get().log(
-			"Packet ack number does not match our sequence number, this packet ack="
-			+ std::to_string(packetAckNumber)
-			+ ", expected="
-			+ std::to_string(ourSequenceNumber)
-		);
-	}
-	if (packetSequenceNumber != ackNumber) {
 		Logger::get().log(
 			"Received unexpected packet, this packet seq="
 			+ std::to_string(packetSequenceNumber)
@@ -190,24 +220,9 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 
 	if (tcpLayer->getTcpHeader()->rstFlag == 1) {
 		closeRemoteSocket();
-		resetState();
+		tcpStatus = TcpStatus::CLOSED;
 
 		return;
-	}
-
-	if (tcpLayer->getTcpHeader()->ackFlag == 1) {
-		// const long long unAcked = ((static_cast<long long>(packetAckNumber) - 1) - static_cast<long long>(ourSequenceNumber.load()));
-		const long long unAcked = static_cast<long long>(ourSequenceNumber.load()) - static_cast<long long>(packetAckNumber);
-		unAckedBytes = unAcked > 0 ? unAcked : 0;
-		Logger::get().log("Unacked bytes: " + std::to_string(unAckedBytes));
-		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
-			tcpStatus = TcpStatus::ESTABLISHED;
-		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && packetAckNumber > finSequenceNumber) {
-			tcpStatus = TcpStatus::FIN_WAIT_2;
-		} else if (tcpStatus == TcpStatus::CLOSE_WAIT) {
-			closeRemoteSocket();
-			resetState();
-		}
 	}
 
 	if (tcpLayer->getTcpHeader()->finFlag == 1) {
@@ -216,7 +231,7 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 			sendAck();
 
 			closeRemoteSocket();
-			resetState();
+			tcpStatus = TcpStatus::CLOSED;
 
 			return;
 		} else if (tcpStatus == TcpStatus::ESTABLISHED) {
@@ -384,7 +399,7 @@ std::vector<uint8_t> TcpConnection::read() {
 		Logger::get().log("recv() failed: " + error);
 		closeRemoteSocket();
 		sendRst();
-		resetState();
+		tcpStatus = TcpStatus::CLOSED;
 
 		return {};
 	}
@@ -414,7 +429,7 @@ void TcpConnection::exceptionEvent() {
 		ioctlsocket(socket, FIONBIO, &mode);
 		sendRst();
 		closeRemoteSocket();
-		resetState();
+		tcpStatus = TcpStatus::CLOSED;
 	}
 }
 
@@ -463,6 +478,7 @@ void TcpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 		ourSequenceNumber += length;
 		unAckedBytes += length;
 		offset += length;
+		// std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 

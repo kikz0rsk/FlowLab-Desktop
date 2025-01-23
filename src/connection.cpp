@@ -1,5 +1,8 @@
 #include "connection.h"
 
+#include <iostream>
+#include <pcapplusplus/UdpLayer.h>
+
 #include "packet_utils.h"
 #include "remote_socket_status.h"
 
@@ -42,18 +45,24 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
 	pcapWriter->writePacket(rawPacket);
 
-	const auto dnsLayer = packet.getLayerOfType<pcpp::DnsLayer>();
-	if (dnsLayer) {
-		dnsManager->processDns(*dnsLayer);
+	lastPacketSentTime = std::chrono::system_clock::now();
+
+	if (const auto udpLayer = packet.getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
+		if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
+			const pcpp::Packet reparsedPacket(packet.getRawPacket());
+			if (const auto dnsLayer = reparsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
+				dnsManager->processDns(*dnsLayer);
+			} else {
+				Logger::get().log("Failed to get DNS layer from packet");
+			}
+		}
 	}
 
-	sendto(
+	send(
 		deviceSocket,
 		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
 		packet.getRawPacketReadOnly()->getRawDataLen(),
-		0,
-		(SOCKADDR *) &originSockAddr,
-		sizeof(originSockAddr)
+		0
 	);
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());

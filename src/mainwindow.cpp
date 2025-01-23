@@ -59,10 +59,11 @@ MainWindow::MainWindow(QWidget *parent)	:
 
 MainWindow::~MainWindow() {
 	stopFlag = true;
+	closesocket(serverSocket);
 	thread.join();
-	closesocket(socket);
 	ndpi::ndpi_exit_detection_module(ndpiStruct);
 	delete ui;
+	WSACleanup();
 }
 
 void MainWindow::threadRoutine() {
@@ -76,8 +77,8 @@ void MainWindow::threadRoutine() {
 		return;
 	}
 
-	socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (socket == INVALID_SOCKET) {
+	serverSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (serverSocket == INVALID_SOCKET) {
 		std::cerr << "socket() failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
 
@@ -85,7 +86,7 @@ void MainWindow::threadRoutine() {
 	}
 
 	auto addr = sockaddr_in{AF_INET, htons(20'000), INADDR_ANY};
-	res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+	res = bind(serverSocket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
 	if (res == SOCKET_ERROR) {
 		std::cerr << "bind() failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
@@ -93,9 +94,23 @@ void MainWindow::threadRoutine() {
 		return;
 	}
 
+	res = listen(serverSocket, 1);
+	if (res == SOCKET_ERROR) {
+		std::cerr << "listen() failed: " << WSAGetLastError() << std::endl;
+		WSACleanup();
+
+		return;
+	}
+
 	setStatusBarMessage("Socket ready on port " + std::to_string(ntohs(addr.sin_port)));
 
-	packetLoop();
+	while (!stopFlag.load()) {
+		try {
+			packetLoop();
+		} catch (const std::exception &e) {}
+
+		setStatusBarMessage("Device disconnected");
+	}
 }
 
 std::string MainWindow::getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddress &dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol) {
@@ -103,6 +118,13 @@ std::string MainWindow::getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddr
 }
 
 void MainWindow::packetLoop() {
+	this->clientSocket = accept(this->serverSocket, nullptr, nullptr);
+	if (this->clientSocket == INVALID_SOCKET) {
+		Logger::get().log("accept() failed: " + std::to_string(WSAGetLastError()));
+
+		return;
+	}
+	setStatusBarMessage("Device connected");
 	while (!stopFlag.load()) {
 		fd_set readFds;
 		fd_set writeFds;
@@ -110,7 +132,8 @@ void MainWindow::packetLoop() {
 		FD_ZERO(&readFds);
 		FD_ZERO(&writeFds);
 		FD_ZERO(&exceptionFds);
-		FD_SET(socket, &readFds);
+		FD_SET(this->clientSocket, &readFds);
+		FD_SET(this->clientSocket, &exceptionFds);
 		for (const auto &conn: connections.getConnections()) {
 			if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 				continue;
@@ -129,9 +152,14 @@ void MainWindow::packetLoop() {
 		}
 
 		const TIMEVAL timeout{0, 500'000};
-		select(0, &readFds, nullptr, nullptr, &timeout);
+		select(0, &readFds, &writeFds, &exceptionFds, &timeout);
 
-		if (FD_ISSET(socket, &readFds)) {
+		if (FD_ISSET(this->clientSocket, &exceptionFds)) {
+			Logger::get().log("Exception on socket: " + std::to_string(WSAGetLastError()));
+			break;
+		}
+
+		if (FD_ISSET(this->clientSocket, &readFds)) {
 			sendFromDevice();
 			Logger::get().log({});
 		}
@@ -162,13 +190,10 @@ void MainWindow::sendFromDevice() {
 	std::array<char, 65535> buffer{};
 
 	sockaddr_in from{};
-	int from_size = sizeof(from);
-	const int length = recvfrom(socket, buffer.data(), buffer.size(), 0, (SOCKADDR *) &from, &from_size);
-	if (length == SOCKET_ERROR) {
-		Logger::get().log("sendFromDevice() recvfrom() failed: " + std::to_string(WSAGetLastError()));
-
-		return;
-	}
+	readExactly(clientSocket, buffer.data(), 4);
+	const auto length = static_cast<uint8_t>(buffer[2]) << 8 | static_cast<uint8_t>(buffer[3]);
+	Logger::get().log("Received packet of length " + std::to_string(length));
+	readExactly(clientSocket, buffer.data() + 4, length - 4);
 
 	timeval time{};
 	gettimeofday(&time, nullptr);
@@ -186,6 +211,8 @@ void MainWindow::sendFromDevice() {
 	Protocol protocol = Protocol::UDP;
 	Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
 
+	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
+
 	if (auto tcpPacket = dynamic_cast<pcpp::TcpLayer *>(ipv4Layer->getNextLayer())) {
 		srcPort = tcpPacket->getSrcPort();
 		dstPort = tcpPacket->getDstPort();
@@ -200,7 +227,6 @@ void MainWindow::sendFromDevice() {
 		return;
 	}
 
-	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 	const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>();
 	if (dnsLayer) {
 		dnsManager.processDns(*dnsLayer);
@@ -240,13 +266,11 @@ void MainWindow::sendFromDevice() {
 					);
 					pcapWriter->writePacket(rawPacket);
 
-					sendto(
-						socket,
+					send(
+						clientSocket,
 						reinterpret_cast<const char *>(rstPacket.getRawPacketReadOnly()->getRawData()),
 						rstPacket.getRawPacketReadOnly()->getRawDataLen(),
-						0,
-						(SOCKADDR *) &from,
-						sizeof(from)
+						0
 					);
 
 					return;
@@ -260,7 +284,7 @@ void MainWindow::sendFromDevice() {
 				ipv4Layer->getDstIPAddress(),
 				srcPort,
 				dstPort,
-				socket,
+				clientSocket,
 				ndpiStruct
 			);
 		} else {
@@ -271,7 +295,7 @@ void MainWindow::sendFromDevice() {
 				ipv4Layer->getDstIPAddress(),
 				srcPort,
 				dstPort,
-				socket,
+				clientSocket,
 				ndpiStruct
 			);
 		}
@@ -298,6 +322,22 @@ void MainWindow::sendFromDevice() {
 
 	connection->processPacketFromDevice(ipv4Layer);
 	Logger::get().log({});
+}
+
+void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
+	int currOffset = 0;
+	while (currOffset < length) {
+		const int bytesRead = recv(socket, buffer + currOffset, length - currOffset, 0);
+		if (bytesRead == 0) {
+			Logger::get().log("Connection closed");
+			throw std::runtime_error("Connection closed");
+		}
+		if (bytesRead == SOCKET_ERROR) {
+			Logger::get().log("recv() failed: " + std::to_string(WSAGetLastError()));
+			throw std::runtime_error("recv() failed: " + std::to_string(WSAGetLastError()));
+		}
+		currOffset += bytesRead;
+	}
 }
 
 void MainWindow::actionShow_logs_clicked() {

@@ -124,6 +124,7 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(network-analyzer-gui)
 endif()
 
+target_compile_options(network-analyzer-gui PRIVATE -Wall -Wextra -Wpedantic)
 
 add_custom_command(
         TARGET network-analyzer-gui POST_BUILD

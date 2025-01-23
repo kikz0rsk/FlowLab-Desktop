@@ -14,6 +14,7 @@ class TcpConnection : public Connection {
 		std::thread connectingThread;
 		uint32_t finSequenceNumber = 0;
 		unsigned int unAckedBytes = 0;
+		unsigned int lastRemoteAckedNum = 0;
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
 		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;

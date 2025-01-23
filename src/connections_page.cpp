@@ -7,14 +7,14 @@
 #include "mainwindow.h"
 
 ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
-	QWidget(parent), ui(new Ui::ConnectionsPage), mainWindow(mainWindow) {
+	QWidget(parent), mainWindow(mainWindow), ui(new Ui::ConnectionsPage) {
 	ui->setupUi(this);
 	connect(ui->listView, &QListView::activated, this, &ConnectionsPage::listView_activated);
 	connect(ui->listView, &QListView::clicked, this, &ConnectionsPage::listView_activated);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &ConnectionsPage::utf8Button_clicked);
 	connect(ui->utf16Button, &QPushButton::clicked, this, &ConnectionsPage::utf16Button_clicked);
 
-	auto *highlighter = new FlowlabSyntaxHighlighter(ui->connectionStream);
+	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	ui->listView->setModel(&model);
 }
 
