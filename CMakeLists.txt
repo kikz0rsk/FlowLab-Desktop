@@ -12,6 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
+find_package(botan CONFIG REQUIRED)
+
 include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
 include_directories(lib/include/)
@@ -55,6 +57,8 @@ set(PROJECT_SOURCES
         include/pcap_writer.h
         include/dns_manager.h
         include/dns_entry.h
+        include/forwarder.h
+        src/forwarder.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -88,6 +92,7 @@ set_target_properties(ndpi PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/
 target_link_libraries(ndpi INTERFACE wsock32 ws2_32)
 
 target_link_libraries(network-analyzer-gui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(network-analyzer-gui PUBLIC Botan::Botan-static)
 target_link_libraries(network-analyzer-gui PUBLIC
         ${CMAKE_SOURCE_DIR}/lib/lib/libPcap++.a
         ${CMAKE_SOURCE_DIR}/lib/lib/libPacket++.a

@@ -23,7 +23,7 @@ class UdpConnection : public Connection {
 
 		void openSocket();
 
-		void sendDataToRemote(const std::vector<uint8_t> &data) override;
+		void sendDataToRemote(std::vector<uint8_t> &data) override;
 
 		void close();
 

@@ -23,6 +23,7 @@
     <option name="/Default/PatternsAndTemplates/LiveTemplates/Template/=9E64A7C6E7E7CB4999D270176060A75D/Applicability/=Live/@EntryIndexedValue" value="false" type="bool" />
     <option name="/Default/PatternsAndTemplates/LiveTemplates/Template/=9E64A7C6E7E7CB4999D270176060A75D/@KeyIndexDefined" value="true" type="bool" />
     <option name="/Default/CodeEditing/TypingAssist/Cpp/CloseBlockComment/@EntryValue" value="true" type="bool" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="3" type="long" />
     <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexRemoved" />
   </component>
   <component name="CMakePresetLoader">{
@@ -43,21 +44,26 @@
   <component name="CMakeSettings">
     <configurations>
       <configuration PROFILE_NAME="vcpkg" ENABLED="true" FROM_PRESET="true" GENERATION_DIR="$PROJECT_DIR$/build" />
+      <configuration PROFILE_NAME="vcpkg-release" ENABLED="true" FROM_PRESET="true" GENERATION_DIR="$PROJECT_DIR$/build-release" />
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="separate to cpp files, dns page">
+    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="use tcp instead of udp">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/QtSettings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/QtSettings.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dnspage.ui" beforeDir="false" afterPath="$PROJECT_DIR$/dnspage.ui" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakePresets.json" beforeDir="false" afterPath="$PROJECT_DIR$/CMakePresets.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/connections_page.ui" beforeDir="false" afterPath="$PROJECT_DIR$/connections_page.ui" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/connection.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/dnspage.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/dnspage.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/logger.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/logger.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/mainwindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/mainwindow.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/tcp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/tcp_connection.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/udp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/udp_connection.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/connection.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/dnspage.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/dnspage.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/logger.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/logger.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/connections_page.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/connections_page.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/mainwindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/mainwindow.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/tcp_connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/tcp_connection.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/udp_connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/udp_connection.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/vcpkg.json" beforeDir="false" afterPath="$PROJECT_DIR$/vcpkg.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,13 +78,52 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/include/connection.h" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/connection.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logger.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logswindow.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/mainwindow.h" root0="FORCE_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/include/mainwindow.h" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/include/tcp_connection.h" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/tcp_connection.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/tcp_status.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/udp_connection.h" root0="FORCE_HIGHLIGHTING" />
@@ -88,8 +133,28 @@
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/IpAddress.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/Packet.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/TcpLayer.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/src/logswindow.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/src/mainwindow.cpp" root0="FORCE_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_HOME_DIR$/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/bits/stl_iterator.h" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectApplicationVersion">
@@ -107,29 +172,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;CMake Application.network-analyzer-gui.executor&quot;: &quot;Debug&quot;,
-    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.west.config.association.type.startup.service&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Development/projects/network-analyzer-gui/lib/include/ndpi&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;CPPToolchains&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "CMake Application.network-analyzer-gui.executor": "Debug",
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.west.config.association.type.startup.service": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "cf.advertisement.text.has.clang-format": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "D:/Development/projects/network-analyzer-gui/lib/include/ndpi",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "CMakeSettings",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="D:\Development\projects\network-analyzer-gui\lib\include\ndpi" />
@@ -143,9 +209,9 @@
     </key>
   </component>
   <component name="RunManager" selected="CMake Application.network-analyzer-gui">
-    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
       <method v="2">
-        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
     <configuration name="network-analyzer-gui" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="network-analyzer-gui" TARGET_NAME="network-analyzer-gui" CONFIG_NAME="vcpkg" RUN_TARGET_PROJECT_NAME="network-analyzer-gui" RUN_TARGET_NAME="network-analyzer-gui">
@@ -205,7 +271,13 @@
       <workItem from="1737105126419" duration="151000" />
       <workItem from="1737205514655" duration="21861000" />
       <workItem from="1737385643262" duration="22363000" />
-      <workItem from="1737482629543" duration="14577000" />
+      <workItem from="1737482629543" duration="15091000" />
+      <workItem from="1737543186833" duration="27079000" />
+      <workItem from="1737630705178" duration="2717000" />
+      <workItem from="1737664195635" duration="10323000" />
+      <workItem from="1737719192092" duration="4450000" />
+      <workItem from="1738059164180" duration="25104000" />
+      <workItem from="1738166436402" duration="5910000" />
     </task>
     <task id="LOCAL-00001" summary="more or less working version">
       <option name="closed" value="true" />
@@ -239,7 +311,39 @@
       <option name="project" value="LOCAL" />
       <updated>1737412270958</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Add dns manager">
+      <option name="closed" value="true" />
+      <created>1737498241419</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1737498241419</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Fixes">
+      <option name="closed" value="true" />
+      <created>1737553776567</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1737553776567</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Send rst on socket open fail">
+      <option name="closed" value="true" />
+      <created>1737553799209</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1737553799209</updated>
+    </task>
+    <task id="LOCAL-00008" summary="use tcp instead of udp">
+      <option name="closed" value="true" />
+      <created>1737672749889</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1737672749889</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -266,18 +370,13 @@
     <MESSAGE value="log outgoing packet in common function" />
     <MESSAGE value="reset status after close" />
     <MESSAGE value="separate to cpp files, dns page" />
-    <option name="LAST_COMMIT_MESSAGE" value="separate to cpp files, dns page" />
+    <MESSAGE value="Add dns manager" />
+    <MESSAGE value="Fixes" />
+    <MESSAGE value="Send rst on socket open fail" />
+    <MESSAGE value="use tcp instead of udp" />
+    <option name="LAST_COMMIT_MESSAGE" value="use tcp instead of udp" />
   </component>
   <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
-          <url>file://$PROJECT_DIR$/src/dns_manager.cpp</url>
-          <line>27</line>
-          <option name="timeStamp" value="3" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
     <watches-manager>
       <configuration name="CMakeRunConfiguration">
         <watch expression="packet.getRawPacket()-&gt;getLinkLayerType()" language="C++" />

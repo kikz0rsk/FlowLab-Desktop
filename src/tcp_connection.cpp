@@ -8,6 +8,8 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/PayloadLayer.h>
+#include <pcapplusplus/SSLHandshake.h>
+#include <pcapplusplus/SSLLayer.h>
 
 #include "packet_utils.h"
 
@@ -84,10 +86,10 @@ void TcpConnection::sendSynAck() {
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(ourWindowSize);
 
 	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(MAX_SEGMENT_SIZE));
-	// pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(6));
+	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint16_t>(6));
 
 	tcpLayer->addTcpOption(mss);
-	// tcpLayer->addTcpOption(winScale);
+	tcpLayer->addTcpOption(winScale);
 
 	pcpp::Packet packet(80);
 	packet.addLayer(ipLayer, true);
@@ -132,10 +134,10 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 		ourSequenceNumber = 100;
 		tcpStatus = TcpStatus::SYN_RECEIVED;
 
-		// const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
-		// if (!windowScaleOpt.isNull()) {
-		// 	windowSizeMultiplier = 1 << windowScaleOpt.getValueAs<uint8_t>();
-		// }
+		const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
+		if (!windowScaleOpt.isNull()) {
+			windowSizeMultiplier = 1 << windowScaleOpt.getValueAs<uint8_t>();
+		}
 		remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
 		openSocket();
@@ -150,7 +152,7 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 		if (packetAckNumber >= lastRemoteAckedNum) {
 			lastRemoteAckedNum = packetAckNumber;
 		}
-		const long long unAcked = static_cast<long long>(ourSequenceNumber.load()) - static_cast<long long>(lastRemoteAckedNum);
+		const long long unAcked = static_cast<long long>(ourSequenceNumber.load()) - static_cast<long long>(lastRemoteAckedNum) + 1;
 		unAckedBytes = unAcked > 0 ? unAcked : 0;
 		Logger::get().log("Unacked bytes: " + std::to_string(unAckedBytes));
 		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
@@ -202,14 +204,15 @@ void TcpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 
 	const unsigned int dataSize = tcpLayer->getLayerPayloadSize();
 	if (dataSize > 0) {
-		const auto data = tcpLayer->getLayerPayload();
+		const auto dataPtr = tcpLayer->getLayerPayload();
 		{
 			auto writeLock = getWriteLock();
 			dataStream.reserve(dataStream.size() + dataSize);
-			dataStream.insert(dataStream.end(), data, data + dataSize);
+			dataStream.insert(dataStream.end(), dataPtr, dataPtr + dataSize);
 		}
 
-		sendDataToRemote(std::vector(data, data + tcpLayer->getLayerPayloadSize()));
+		auto vec = std::vector(dataPtr, dataPtr + tcpLayer->getLayerPayloadSize());
+		sendDataToRemote(vec);
 	}
 
 	ackNumber = packetSequenceNumber;
@@ -296,26 +299,11 @@ void TcpConnection::openSocket() {
 	res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	if (res == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK) {
 		std::cerr << "connect() failed: " << WSAGetLastError() << std::endl;
+		sendRst();
 		remoteSocketStatus = RemoteSocketStatus::CLOSED;
 
 		return;
 	}
-	// connectingThread = std::thread(
-	// 	[this, destSockAddr] {
-	// 		auto writeLock = getWriteLock();
-	// 		int res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
-	// 		if (res == SOCKET_ERROR) {
-	// 			std::cerr << "connect() failed: " << WSAGetLastError() << std::endl;
-	// 			remoteSocketStatus = RemoteSocketStatus::CLOSED;
-	//
-	// 			return;
-	// 		}
-	//
-	// 		remoteSocketStatus = RemoteSocketStatus::ESTABLISHED;
-	// 		sendSynAck();
-	// 		ourSequenceNumber += 1;
-	// 	}
-	// );
 }
 
 void TcpConnection::sendAck() {
@@ -338,7 +326,7 @@ void TcpConnection::sendAck() {
 	sendToDeviceSocket(packet);
 }
 
-void TcpConnection::sendDataToRemote(const std::vector<uint8_t> &data) {
+void TcpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
@@ -404,11 +392,11 @@ std::vector<uint8_t> TcpConnection::read() {
 		return {};
 	}
 
-	{
-		auto writeLock = getWriteLock();
-		dataStream.reserve(dataStream.size() + length);
-		dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
-	}
+	// {
+	// 	auto writeLock = getWriteLock();
+	// 	dataStream.reserve(dataStream.size() + length);
+	// 	dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
+	// }
 
 	return {buffer.begin(), buffer.begin() + length};
 }
@@ -425,7 +413,7 @@ void TcpConnection::writeEvent() {
 
 void TcpConnection::exceptionEvent() {
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
-		u_long mode = 0;// Blocking mode
+		u_long mode = 0; // Blocking mode
 		ioctlsocket(socket, FIONBIO, &mode);
 		sendRst();
 		closeRemoteSocket();
@@ -478,7 +466,6 @@ void TcpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 		ourSequenceNumber += length;
 		unAckedBytes += length;
 		offset += length;
-		// std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 

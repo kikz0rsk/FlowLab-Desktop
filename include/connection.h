@@ -14,6 +14,7 @@
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "ndpi.h"
+#include "forwarder.h"
 
 namespace pcpp {
 	class IPv4Layer;
@@ -69,7 +70,7 @@ class Connection {
 
 		virtual void processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) = 0;
 
-		virtual void sendDataToRemote(const std::vector<uint8_t> &data) = 0;
+		virtual void sendDataToRemote(std::vector<uint8_t> &data) = 0;
 
 		virtual std::vector<uint8_t> read() = 0;
 

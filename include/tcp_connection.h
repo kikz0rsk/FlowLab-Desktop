@@ -18,6 +18,7 @@ class TcpConnection : public Connection {
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
 		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
+		std::shared_ptr<Forwarder> forwarder;
 
 	public:
 		TcpConnection(
@@ -47,7 +48,7 @@ class TcpConnection : public Connection {
 
 		void sendAck();
 
-		void sendDataToRemote(const std::vector<uint8_t> &data) override;
+		void sendDataToRemote(std::vector<uint8_t> &data) override;
 
 		std::vector<uint8_t> read() override;
 

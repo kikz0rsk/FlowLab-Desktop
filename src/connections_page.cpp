@@ -9,13 +9,14 @@
 ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::ConnectionsPage) {
 	ui->setupUi(this);
-	connect(ui->listView, &QListView::activated, this, &ConnectionsPage::listView_activated);
-	connect(ui->listView, &QListView::clicked, this, &ConnectionsPage::listView_activated);
+	connect(ui->connectionsList, &QTreeView::activated, this, &ConnectionsPage::listView_activated);
+	connect(ui->connectionsList, &QTreeView::clicked, this, &ConnectionsPage::listView_activated);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &ConnectionsPage::utf8Button_clicked);
 	connect(ui->utf16Button, &QPushButton::clicked, this, &ConnectionsPage::utf16Button_clicked);
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
-	ui->listView->setModel(&model);
+	this->model.setHorizontalHeaderLabels({"Source IP", "Source Port", "Destination IP", "Destination Port", "L2 Protocol"});
+	ui->connectionsList->setModel(&model);
 }
 
 ConnectionsPage::~ConnectionsPage() {
@@ -28,7 +29,7 @@ void ConnectionsPage::utf8Button_clicked() {
 	ui->utf16Button->setChecked(false);
 
 	// update the view
-	listView_activated(ui->listView->currentIndex());
+	listView_activated(ui->connectionsList->currentIndex());
 }
 
 void ConnectionsPage::utf16Button_clicked() {
@@ -37,7 +38,7 @@ void ConnectionsPage::utf16Button_clicked() {
 	ui->utf16Button->setChecked(true);
 
 	// update the view
-	listView_activated(ui->listView->currentIndex());
+	listView_activated(ui->connectionsList->currentIndex());
 }
 
 void ConnectionsPage::listView_activated(const QModelIndex &index) {
@@ -74,14 +75,22 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 }
 
 void ConnectionsPage::addConnection(std::shared_ptr<Connection> connection) {
-	auto *item = new QStandardItem(
-		QString::fromStdString(
-			connection->getSrcIp().toString()
-				+ ":" + std::to_string(connection->getSrcPort()) + " -> "
-				+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
-				+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
-		)
-	);
-	item->setData(QVariant::fromValue(connection));
-	model.insertRow(0, item);
+	// auto* row = new QStandardItem();
+	auto* srcIp = new QStandardItem(QString::fromStdString(connection->getSrcIp().toString()));
+	srcIp->setData(QVariant::fromValue(connection));
+	auto* srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
+	auto* dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
+	auto* dstPort = new QStandardItem(QString::number(connection->getDstPort()));
+	auto* protocol = new QStandardItem(connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP");
+	// row->appendRow({srcIp, srcPort, dstIp, dstPort, protocol});
+	// row->setData(QVariant::fromValue(connection));
+	// auto *item = new QStandardItem(
+	// 	QString::fromStdString(
+	// 		connection->getSrcIp().toString()
+	// 			+ ":" + std::to_string(connection->getSrcPort()) + " -> "
+	// 			+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
+	// 			+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
+	// 	)
+	// );
+	model.insertRow(0, {srcIp, srcPort, dstIp, dstPort, protocol});
 }

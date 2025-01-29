@@ -151,7 +151,7 @@ void MainWindow::packetLoop() {
 			FD_SET(conn.second->getSocket(), &exceptionFds);
 		}
 
-		const TIMEVAL timeout{0, 500'000};
+		const TIMEVAL timeout{0, 0};
 		select(0, &readFds, &writeFds, &exceptionFds, &timeout);
 
 		if (FD_ISSET(this->clientSocket, &exceptionFds)) {

@@ -47,17 +47,6 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
-	if (const auto udpLayer = packet.getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
-		if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
-			const pcpp::Packet reparsedPacket(packet.getRawPacket());
-			if (const auto dnsLayer = reparsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
-				dnsManager->processDns(*dnsLayer);
-			} else {
-				Logger::get().log("Failed to get DNS layer from packet");
-			}
-		}
-	}
-
 	send(
 		deviceSocket,
 		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),

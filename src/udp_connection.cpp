@@ -37,10 +37,11 @@ void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 	sentPacketCount++;
 
 	if (udpLayer->getLayerPayloadSize() == 0) {
-		sendDataToRemote(std::vector<uint8_t>{});
+		std::vector<uint8_t> vec = {};
+		sendDataToRemote(vec);
 	} else {
 		const auto data = udpLayer->getLayerPayload();
-		const std::vector dataVec(data, data + udpLayer->getLayerPayloadSize());
+		std::vector dataVec(data, data + udpLayer->getLayerPayloadSize());
 		{
 			auto writeLock = getWriteLock();
 			dataStream.reserve(dataStream.size() + dataVec.size());
@@ -79,7 +80,7 @@ void UdpConnection::openSocket() {
 	remoteSocketStatus = RemoteSocketStatus::ESTABLISHED;
 }
 
-void UdpConnection::sendDataToRemote(const std::vector<uint8_t> &data) {
+void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
@@ -155,6 +156,14 @@ void UdpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 		Logger::get().log(
 			"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
 		);
+
+		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
+			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
+				pcpp::Packet p(100);
+				pcpp::DnsLayer dns(udpLayer->getLayerPayload(), udpLayer->getLayerPayloadSize(), udpLayer, &p);
+				dnsManager->processDns(dns);
+			}
+		}
 
 		sendToDeviceSocket(*packet);
 
