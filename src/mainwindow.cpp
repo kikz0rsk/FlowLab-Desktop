@@ -140,7 +140,9 @@ void MainWindow::packetLoop() {
 		FD_ZERO(&writeFds);
 		FD_ZERO(&exceptionFds);
 		FD_SET(this->clientSocket, &readFds);
-		FD_SET(this->clientSocket, &exceptionFds);
+		// FD_SET(this->clientSocket, &exceptionFds);
+		std::vector<std::shared_ptr<Connection>> connectionsInFd{};
+		connectionsInFd.reserve(connections.getConnections().size());
 		for (const auto &conn: connections.getConnections()) {
 			if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 				continue;
@@ -156,34 +158,35 @@ void MainWindow::packetLoop() {
 			FD_SET(conn.second->getSocket(), &readFds);
 			FD_SET(conn.second->getSocket(), &writeFds);
 			FD_SET(conn.second->getSocket(), &exceptionFds);
+			connectionsInFd.emplace_back(conn.second);
 		}
 
 		const TIMEVAL timeout{0, 0};
 		select(0, &readFds, &writeFds, &exceptionFds, &timeout);
 
-		if (FD_ISSET(this->clientSocket, &exceptionFds)) {
-			Logger::get().log("Exception on socket: " + std::to_string(WSAGetLastError()));
-			break;
-		}
+		// if (FD_ISSET(this->clientSocket, &exceptionFds)) {
+		// 	Logger::get().log("Exception on socket: " + std::to_string(WSAGetLastError()));
+		// 	break;
+		// }
 
 		if (FD_ISSET(this->clientSocket, &readFds)) {
 			sendFromDevice();
 		}
 
-		for (auto &conn: connections.getConnections()) {
-			if (FD_ISSET(conn.second->getSocket(), &readFds)) {
-				const auto data = conn.second->read();
+		for (auto &conn: connectionsInFd) {
+			if (FD_ISSET(conn->getSocket(), &readFds)) {
+				const auto data = conn->read();
 				if (data.empty()) {
 					continue;
 				}
 
-				conn.second->sendDataToDeviceSocket(data);
+				conn->sendDataToDeviceSocket(data);
 			}
-			if (FD_ISSET(conn.second->getSocket(), &writeFds)) {
-				conn.second->writeEvent();
+			if (FD_ISSET(conn->getSocket(), &writeFds)) {
+				conn->writeEvent();
 			}
-			if (FD_ISSET(conn.second->getSocket(), &exceptionFds)) {
-				conn.second->exceptionEvent();
+			if (FD_ISSET(conn->getSocket(), &exceptionFds)) {
+				conn->exceptionEvent();
 			}
 		}
 	}
