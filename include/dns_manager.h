@@ -8,10 +8,10 @@
 
 class DnsManager {
 	public:
-		using OnAddCallback = std::shared_ptr<std::function<void (const DnsEntry&)>>;
+		using OnAddCallback = std::shared_ptr<std::function<void (std::shared_ptr<DnsEntry>)>>;
 
 	private:
-		std::vector<DnsEntry> dnsEntries;
+		std::vector<std::shared_ptr<DnsEntry>> dnsEntries{};
 		std::set<OnAddCallback> callbacks{};
 		std::mutex mutex{};
 
@@ -20,9 +20,9 @@ class DnsManager {
 
 		void processDns(const pcpp::DnsLayer& layer);
 
-		DnsEntry * getDnsEntry(const std::string &ip);
+		std::shared_ptr<DnsEntry> getDnsEntry(const std::string &ip);
 
-		DnsEntry& addDnsEntry(DnsEntry&& entry);
+		std::shared_ptr<DnsEntry> addDnsEntry(DnsEntry &&entry);
 
 		void registerEventCallback(const OnAddCallback &callback);
 

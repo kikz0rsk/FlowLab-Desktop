@@ -9,11 +9,11 @@ class TcpConnection : public Connection {
 	protected:
 		unsigned int ackNumber{};
 		std::atomic_uint32_t ourSequenceNumber = 0;
-		unsigned short ourWindowSize = 65'535;
-		unsigned short remoteWindowSize = 65'535;
+		unsigned long long ourWindowSize = 65'535;
+		unsigned long long remoteWindowSize = 65'535;
 		std::thread connectingThread;
 		uint32_t finSequenceNumber = 0;
-		unsigned int unAckedBytes = 0;
+		unsigned long long unAckedBytes = 0;
 		unsigned int lastRemoteAckedNum = 0;
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
@@ -36,7 +36,7 @@ class TcpConnection : public Connection {
 
 		void resetState();
 
-		void closeRemoteSocket();
+		void closeRemoteSocket() override;
 
 		void sendFinAck();
 

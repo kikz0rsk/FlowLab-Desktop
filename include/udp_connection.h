@@ -25,7 +25,7 @@ class UdpConnection : public Connection {
 
 		void sendDataToRemote(std::vector<uint8_t> &data) override;
 
-		void close();
+		void closeRemoteSocket() override;
 
 		std::vector<uint8_t> read() override;
 

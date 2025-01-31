@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)	:
 	QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
 
+	dnsManager = std::make_shared<DnsManager>();
 	connectionsPage = new ConnectionsPage(*this);
 	dnsPage = new DnsPage(*this, dnsManager);
 
@@ -61,8 +62,14 @@ MainWindow::~MainWindow() {
 	stopFlag = true;
 	closesocket(serverSocket);
 	thread.join();
-	ndpi::ndpi_exit_detection_module(ndpiStruct);
 	delete ui;
+	for (auto& conn : connections.getConnections()) {
+		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+			continue;
+		}
+		conn.second->closeRemoteSocket();
+	}
+	ndpi::ndpi_exit_detection_module(ndpiStruct);
 	WSACleanup();
 }
 
@@ -161,7 +168,6 @@ void MainWindow::packetLoop() {
 
 		if (FD_ISSET(this->clientSocket, &readFds)) {
 			sendFromDevice();
-			Logger::get().log({});
 		}
 
 		for (auto &conn: connections.getConnections()) {
@@ -171,10 +177,7 @@ void MainWindow::packetLoop() {
 					continue;
 				}
 
-				Logger::get().log("Read " + std::to_string(data.size()) + " bytes from socket");
-
 				conn.second->sendDataToDeviceSocket(data);
-				Logger::get().log({});
 			}
 			if (FD_ISSET(conn.second->getSocket(), &writeFds)) {
 				conn.second->writeEvent();
@@ -192,7 +195,7 @@ void MainWindow::sendFromDevice() {
 	sockaddr_in from{};
 	readExactly(clientSocket, buffer.data(), 4);
 	const auto length = static_cast<uint8_t>(buffer[2]) << 8 | static_cast<uint8_t>(buffer[3]);
-	Logger::get().log("Received packet of length " + std::to_string(length));
+	// Logger::get().log("Received packet of length " + std::to_string(length));
 	readExactly(clientSocket, buffer.data() + 4, length - 4);
 
 	timeval time{};
@@ -209,7 +212,7 @@ void MainWindow::sendFromDevice() {
 	uint16_t srcPort{};
 	uint16_t dstPort{};
 	Protocol protocol = Protocol::UDP;
-	Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
+	// Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
 
 	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 
@@ -229,7 +232,7 @@ void MainWindow::sendFromDevice() {
 
 	const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>();
 	if (dnsLayer) {
-		dnsManager.processDns(*dnsLayer);
+		dnsManager->processDns(*dnsLayer);
 	}
 
 	auto connection = connections.find(ipv4Layer->getSrcIPAddress(), ipv4Layer->getDstIPAddress(), srcPort, dstPort, protocol);
@@ -301,27 +304,16 @@ void MainWindow::sendFromDevice() {
 		}
 
 		connection->setPcapWriter(pcapWriter);
-		connection->setDnsManager(&dnsManager);
+		connection->setDnsManager(dnsManager);
 		connections.addConnection(connection);
 		newConnection = true;
 	}
 
 	if (newConnection) {
 		connectionsPage->addConnection(connection);
-		// auto *item = new QStandardItem(
-		// 	QString::fromStdString(
-		// 		connection->getSrcIp().toString()
-		// 		+ ":" + std::to_string(connection->getSrcPort()) + " -> "
-		// 		+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
-		// 		+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
-		// 	)
-		// );
-		// item->setData(QVariant::fromValue(connection));
-		// model.insertRow(0, item);
 	}
 
 	connection->processPacketFromDevice(ipv4Layer);
-	Logger::get().log({});
 }
 
 void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {

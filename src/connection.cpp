@@ -1,10 +1,12 @@
 #include "connection.h"
 
 #include <iostream>
+#include <utility>
 #include <pcapplusplus/UdpLayer.h>
 
 #include "packet_utils.h"
 #include "remote_socket_status.h"
+#include "socket_utils.h"
 
 Connection::Connection(
 	pcpp::IPAddress originHostIp,
@@ -39,7 +41,7 @@ Connection::~Connection() {
 }
 
 void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
-	Logger::get().log("Sending: " + PacketUtils::toString(packet));
+	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
 	pcpp::RawPacket rawPacket{};
 	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
@@ -47,12 +49,14 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
-	send(
+	int res = SocketUtils::writeExactly(
 		deviceSocket,
 		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
-		packet.getRawPacketReadOnly()->getRawDataLen(),
-		0
+		packet.getRawPacketReadOnly()->getRawDataLen()
 	);
+	if (res == SOCKET_ERROR) {
+		log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+	}
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
 	receivedPacketCount++;
@@ -165,6 +169,16 @@ void Connection::setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice>
 	Connection::pcapWriter = pcapWriter;
 }
 
-void Connection::setDnsManager(DnsManager *dnsManager) {
-	this->dnsManager = dnsManager;
+void Connection::setDnsManager(std::shared_ptr<DnsManager> dnsManager) {
+	this->dnsManager = std::move(dnsManager);
+}
+
+ndpi::ndpi_flow_struct * Connection::getNdpiFlow() const {
+	return ndpiFlow;
+}
+
+void Connection::log(const std::string &msg) const {
+	Logger::get().log(
+		std::format("[{}:{} -> {}:{} {}] {}", srcIp.toString(), srcPort, dstIp.toString(), dstPort, protocol == Protocol::TCP ? "TCP" : "UDP", msg)
+	);
 }

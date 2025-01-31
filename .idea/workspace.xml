@@ -7,6 +7,7 @@
     <option name="/Default/RiderDebugger/RiderRestoreDecompile/RestoreDecompileSetting/@EntryValue" value="false" type="bool" />
     <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
     <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
+    <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexRemoved" />
     <option name="/Default/Housekeeping/OptionsDialog/SelectedPageId/@EntryValue" value="CppFormatterOtherPage" type="string" />
     <option name="/Default/PatternsAndTemplates/LiveTemplates/Template/=B003EBE9BE3ECF4289E4EAA2175A0486/Text/@EntryValue" value="#pragma once&#10;&#10;$END$&#10;" type="string" />
     <option name="/Default/PatternsAndTemplates/LiveTemplates/Template/=B003EBE9BE3ECF4289E4EAA2175A0486/Field/=FILENAME/@KeyIndexDefined" value="false" type="bool" />
@@ -24,7 +25,6 @@
     <option name="/Default/PatternsAndTemplates/LiveTemplates/Template/=9E64A7C6E7E7CB4999D270176060A75D/@KeyIndexDefined" value="true" type="bool" />
     <option name="/Default/CodeEditing/TypingAssist/Cpp/CloseBlockComment/@EntryValue" value="true" type="bool" />
     <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="3" type="long" />
-    <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexRemoved" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
@@ -48,22 +48,24 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="use tcp instead of udp">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/QtSettings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/QtSettings.xml" afterDir="false" />
+    <list default="true" id="ac4ca616-115c-484c-843b-7115e274feb2" name="Changes" comment="commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakePresets.json" beforeDir="false" afterPath="$PROJECT_DIR$/CMakePresets.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/connections_page.ui" beforeDir="false" afterPath="$PROJECT_DIR$/connections_page.ui" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dnspage.ui" beforeDir="false" afterPath="$PROJECT_DIR$/dnspage.ui" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/connection.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/dns_manager.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/dns_manager.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/dnspage.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/dnspage.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/mainwindow.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/mainwindow.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/tcp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/tcp_connection.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/udp_connection.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/udp_connection.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/connection.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/connections_page.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/connections_page.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dns_manager.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/dns_manager.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/dnspage.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/dnspage.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/mainwindow.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/mainwindow.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/tcp_connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/tcp_connection.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/udp_connection.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/udp_connection.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vcpkg.json" beforeDir="false" afterPath="$PROJECT_DIR$/vcpkg.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -120,6 +122,87 @@
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///dummy.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/connection.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logger.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/include/logswindow.h" root0="FORCE_HIGHLIGHTING" />
@@ -133,28 +216,8 @@
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/IpAddress.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/Packet.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/lib/include/pcapplusplus/TcpLayer.h" root0="FORCE_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/logger.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/src/logswindow.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/src/mainwindow.cpp" root0="FORCE_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
-    <setting file="mock://D:/Development/projects/network-analyzer-gui/src/tcp_connection.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_HOME_DIR$/bin/mingw/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/bits/stl_iterator.h" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectApplicationVersion">
@@ -209,9 +272,9 @@
     </key>
   </component>
   <component name="RunManager" selected="CMake Application.network-analyzer-gui">
-    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
       <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
       </method>
     </configuration>
     <configuration name="network-analyzer-gui" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="network-analyzer-gui" TARGET_NAME="network-analyzer-gui" CONFIG_NAME="vcpkg" RUN_TARGET_PROJECT_NAME="network-analyzer-gui" RUN_TARGET_NAME="network-analyzer-gui">
@@ -277,7 +340,9 @@
       <workItem from="1737664195635" duration="10323000" />
       <workItem from="1737719192092" duration="4450000" />
       <workItem from="1738059164180" duration="25104000" />
-      <workItem from="1738166436402" duration="5910000" />
+      <workItem from="1738166436402" duration="15019000" />
+      <workItem from="1738228219225" duration="24855000" />
+      <workItem from="1738315712252" duration="16914000" />
     </task>
     <task id="LOCAL-00001" summary="more or less working version">
       <option name="closed" value="true" />
@@ -343,7 +408,15 @@
       <option name="project" value="LOCAL" />
       <updated>1737672749889</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="commit">
+      <option name="closed" value="true" />
+      <created>1738182053405</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1738182053405</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -374,7 +447,8 @@
     <MESSAGE value="Fixes" />
     <MESSAGE value="Send rst on socket open fail" />
     <MESSAGE value="use tcp instead of udp" />
-    <option name="LAST_COMMIT_MESSAGE" value="use tcp instead of udp" />
+    <MESSAGE value="commit" />
+    <option name="LAST_COMMIT_MESSAGE" value="commit" />
   </component>
   <component name="XDebuggerManager">
     <watches-manager>

@@ -18,7 +18,7 @@ UdpConnection::UdpConnection(
 ) : Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::UDP, deviceSocket, ndpiStruct) {}
 
 UdpConnection::~UdpConnection() {
-	close();
+	UdpConnection::closeRemoteSocket();
 }
 
 void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
@@ -28,7 +28,7 @@ void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 
 	const auto udpLayer = dynamic_cast<pcpp::UdpLayer *>(ipv4Layer->getNextLayer());
 	if (udpLayer == nullptr) {
-		Logger::get().log("Received packet is not UDP");
+		log("Received packet is not UDP");
 
 		return;
 	}
@@ -54,7 +54,7 @@ void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 void UdpConnection::openSocket() {
 	socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (socket == INVALID_SOCKET) {
-		Logger::get().log("socket() failed: " + std::to_string(WSAGetLastError()));
+		log("socket() failed: " + std::to_string(WSAGetLastError()));
 
 		return;
 	}
@@ -62,7 +62,7 @@ void UdpConnection::openSocket() {
 	auto addr = sockaddr_in{AF_INET, htons(0), INADDR_ANY};
 	int res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
 	if (res == SOCKET_ERROR) {
-		Logger::get().log("bind() failed: " + std::to_string(WSAGetLastError()));
+		log("bind() failed: " + std::to_string(WSAGetLastError()));
 
 		return;
 	}
@@ -72,7 +72,7 @@ void UdpConnection::openSocket() {
 	destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
 	res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	if (res == SOCKET_ERROR) {
-		Logger::get().log("connect() failed: " + std::to_string(WSAGetLastError()));
+		log("connect() failed: " + std::to_string(WSAGetLastError()));
 
 		return;
 	}
@@ -84,7 +84,7 @@ void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
-void UdpConnection::close() {
+void UdpConnection::closeRemoteSocket() {
 	remoteSocketStatus = RemoteSocketStatus::CLOSED;
 	closesocket(socket);
 }
@@ -101,7 +101,7 @@ std::vector<uint8_t> UdpConnection::read() {
 
 	if (length == 0) {
 		// Connection closed
-		close();
+		closeRemoteSocket();
 
 		return {};
 	}
@@ -111,8 +111,8 @@ std::vector<uint8_t> UdpConnection::read() {
 			return {};
 		}
 
-		Logger::get().log("recv() failed: " + std::to_string(WSAGetLastError()));
-		close();
+		log("recv() failed: " + std::to_string(WSAGetLastError()));
+		closeRemoteSocket();
 
 		return {};
 	}
@@ -147,15 +147,15 @@ std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(con
 void UdpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 	size_t offset = 0;
 	while (offset < data.size()) {
-		const unsigned int length = std::min(offset + MAX_SEGMENT_SIZE, data.size()) - offset;
+		const unsigned int length = std::min(offset + DEFAULT_MAX_SEGMENT_SIZE, data.size()) - offset;
 		const auto packet = encapsulateResponseDataToPacket(std::vector(data.begin() + offset, data.begin() + offset + length));
 		if (!packet) {
 			break;
 		}
 
-		Logger::get().log(
-			"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
-		);
+		// log(
+		// 	"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
+		// );
 
 		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {

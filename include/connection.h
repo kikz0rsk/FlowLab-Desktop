@@ -22,7 +22,7 @@ namespace pcpp {
 
 class Connection {
 	public:
-		static constexpr unsigned int MAX_SEGMENT_SIZE = 1430;
+		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1200;
 
 	protected:
 		pcpp::IPAddress originHostIp;
@@ -41,6 +41,7 @@ class Connection {
 		SOCKET deviceSocket{};
 		std::vector<uint8_t> dataStream{};
 		sockaddr_in originSockAddr{};
+		int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
 
 		std::shared_mutex mutex{};
 
@@ -51,7 +52,7 @@ class Connection {
 		ndpi::ndpi_flow_struct *ndpiFlow = nullptr;
 		ndpi::ndpi_protocol ndpiProtocol{};
 		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
-		DnsManager* dnsManager;
+		std::shared_ptr<DnsManager> dnsManager;
 
 	public:
 		Connection(
@@ -87,6 +88,8 @@ class Connection {
 		void processDpi(const unsigned char *packetPtr, unsigned short packetLen);
 
 		[[nodiscard]] virtual bool shouldClose() const;
+
+		virtual void closeRemoteSocket() = 0;
 
 		[[nodiscard]] std::shared_lock<std::shared_mutex> getReadLock();
 
@@ -132,5 +135,9 @@ class Connection {
 
 		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter);
 
-		void setDnsManager(DnsManager *dnsManager);
+		void setDnsManager(std::shared_ptr<DnsManager> dnsManager);
+
+		[[nodiscard]] ndpi::ndpi_flow_struct* getNdpiFlow() const;
+
+		void log(const std::string& msg) const;
 };

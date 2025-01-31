@@ -17,21 +17,21 @@ class DnsPage : public QWidget
 	Q_OBJECT
 
 	public:
-		explicit DnsPage(MainWindow& mainWindow, DnsManager& dnsManager, QWidget *parent = nullptr);
+		explicit DnsPage(MainWindow& mainWindow, std::shared_ptr<DnsManager> dnsManager, QWidget *parent = nullptr);
 		~DnsPage();
 
 	signals:
-		void addDnsEntrySignal(const DnsEntry& dns);
+		void addDnsEntrySignal(std::shared_ptr<DnsEntry> dns);
 
 	private slots:
-		void addDnsToTable(const DnsEntry& dns);
+		void addDnsToTable(std::shared_ptr<DnsEntry> dns);
 
 	private:
 		Ui::DnsPage *ui;
 		MainWindow& mainWindow;
-		DnsManager& dnsManager;
+		std::shared_ptr<DnsManager> dnsManager;
 		QStandardItemModel* model;
-		std::shared_ptr<std::function<void (const DnsEntry&)>> addDnsCallback;
+		std::shared_ptr<std::function<void (std::shared_ptr<DnsEntry>)>> addDnsCallback;
 };
 
 #endif// DNSPAGE_H

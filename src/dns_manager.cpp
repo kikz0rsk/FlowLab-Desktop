@@ -1,7 +1,7 @@
 #include "dns_manager.h"
 
-DnsEntry& DnsManager::addDnsEntry(DnsEntry&& entry) {
-	auto& res = this->dnsEntries.emplace_back(std::forward<DnsEntry>(entry));
+std::shared_ptr<DnsEntry> DnsManager::addDnsEntry(DnsEntry &&entry) {
+	auto res = this->dnsEntries.emplace_back(std::make_shared<DnsEntry>(std::forward<DnsEntry>(entry)));
 	for (const auto &callback : callbacks) {
 		callback->operator()(res);
 	}
@@ -30,7 +30,7 @@ void DnsManager::processDns(const pcpp::DnsLayer& layer) {
 		const auto dnsQueryName = dnsQuery->getName();
 		auto dnsEntryPtr = getDnsEntry(dnsQueryName);
 		if (!dnsEntryPtr) {
-			dnsEntryPtr = &addDnsEntry(DnsEntry(dnsQueryName));
+			dnsEntryPtr = addDnsEntry(DnsEntry(dnsQueryName));
 		}
 
 		DnsEntry& dnsEntry = *dnsEntryPtr;
@@ -43,10 +43,10 @@ void DnsManager::processDns(const pcpp::DnsLayer& layer) {
 	}
 }
 
-DnsEntry * DnsManager::getDnsEntry(const std::string &domain) {
+std::shared_ptr<DnsEntry> DnsManager::getDnsEntry(const std::string &domain) {
 	for (auto& entry: this->dnsEntries) {
-		if (entry.domain == domain) {
-			return &entry;
+		if (entry->domain == domain) {
+			return entry;
 		}
 	}
 

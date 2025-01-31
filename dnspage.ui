@@ -19,7 +19,7 @@
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
-     <widget class="QTableView" name="dnsList"/>
+     <widget class="QTreeView" name="dnsList"/>
      <widget class="QWidget" name="formWidget" native="true">
       <widget class="QLabel" name="label">
        <property name="geometry">

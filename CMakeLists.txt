@@ -59,6 +59,8 @@ set(PROJECT_SOURCES
         include/dns_entry.h
         include/forwarder.h
         src/forwarder.cpp
+        include/socket_utils.h
+        src/socket_utils.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

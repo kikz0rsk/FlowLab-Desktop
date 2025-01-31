@@ -47,7 +47,7 @@ class MainWindow : public QMainWindow
 		std::atomic_bool stopFlag = false;
 		std::unique_ptr<LogsWindow> logsWindow;
 		ConnectionManager connections;
-		DnsManager dnsManager;
+		std::shared_ptr<DnsManager> dnsManager;
 
 		DnsPage *dnsPage;
 		ConnectionsPage *connectionsPage;
