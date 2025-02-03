@@ -79,7 +79,7 @@ void TcpConnection::sendSynAck() {
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(ourWindowSize);
 
 	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
-	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(2));
+	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(0));
 	pcpp::TcpOptionBuilder noop(pcpp::TcpOptionBuilder::NopEolOptionEnumType::Nop);
 
 	tcpLayer->addTcpOption(winScale);
@@ -100,7 +100,30 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	auto packetSequenceNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->sequenceNumber);
 	auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
 	if (remoteSocketStatus == RemoteSocketStatus::INITIATING) {
-		log("Waiting for connection to be established, throwing packet away: " + tcpLayer->toString());
+		log("Waiting for connection to be established: " + tcpLayer->toString());
+
+		auto dstIpStr = dstIp.toString();
+		int res;
+		if (isIpv6()) {
+			auto destSockAddr = ndpi::sockaddr_in6{AF_INET6, htons(dstPort)};
+			inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
+			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
+		} else {
+			auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
+			destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
+			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
+		}
+		const auto errCode = WSAGetLastError();
+		if (res == SOCKET_ERROR) {
+			if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
+				log("In progress");
+			} else if (errCode == WSAEISCONN) {
+				log("Connected");
+				writeEvent();
+			} else {
+				log("Connect failed: " + std::to_string(WSAGetLastError()));
+			}
+		}
 
 		return;
 	}
@@ -358,7 +381,7 @@ std::vector<uint8_t> TcpConnection::read() {
 	}
 
 	// bytesToRead = bytesToRead > 30'000 ? 30'000 : bytesToRead;
-	bytesToRead = maxSegmentSize;
+	bytesToRead = bytesToRead < maxSegmentSize ? bytesToRead : maxSegmentSize;
 	log("bytesToRead: " + std::to_string(bytesToRead));
 	// if (unAckedBytes >= 10'000 || (unAckedBytes > 0 && unAckedBytes >= remoteWindowSize)) {
 	// 	log("Delaying read due to unacked bytes: " + std::to_string(unAckedBytes) + " " + std::to_string(remoteWindowSize));

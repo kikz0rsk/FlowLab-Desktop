@@ -291,6 +291,7 @@ void ProxyService::packetLoop() {
 		}
 		if (FD_ISSET(conn->getSocket(), &writeFds)) {
 			conn->writeEvent();
+			Logger::get().log("Write event");
 		}
 		if (FD_ISSET(conn->getSocket(), &exceptionFds)) {
 			conn->exceptionEvent();

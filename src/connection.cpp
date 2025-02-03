@@ -54,6 +54,9 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		0
 	);
 	const auto errCode = WSAGetLastError();
+	if (res == SOCKET_ERROR) {
+		log("sendToDeviceSocket send() returned: " + std::to_string(errCode));
+	}
 
 	mode = 1;// Non-blocking mode
 	ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
