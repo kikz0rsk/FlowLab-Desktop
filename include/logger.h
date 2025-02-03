@@ -8,7 +8,7 @@
 
 class Logger {
 	public:
-		using OnLogCallback = std::shared_ptr<std::function<void (const std::string &)>>;
+		using OnLogCallback = std::shared_ptr<std::function<void (std::string)>>;
 	protected:
 		std::list<std::string> logs;
 		std::set<OnLogCallback> callbacks{};

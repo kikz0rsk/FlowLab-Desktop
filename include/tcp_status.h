@@ -9,10 +9,13 @@ enum class TcpStatus {
 	CLOSE_WAIT
 };
 
-constexpr std::array<std::string, 3> tcpStatusStrings = {
+constexpr std::array<std::string, 6> tcpStatusStrings = {
 	"CLOSED",
 	"SYN_RECEIVED",
-	"FIN_SENT"
+	"ESTABLISHED",
+	"FIN_WAIT_1",
+	"FIN_WAIT_2",
+	"CLOSE_WAIT"
 };
 
 inline std::string tcpStatusToString(TcpStatus status) {

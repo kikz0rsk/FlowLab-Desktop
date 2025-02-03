@@ -13,10 +13,24 @@ class ConnectionManager {
 	public:
 		void addConnection(const std::shared_ptr<Connection>& connection);
 
-		std::shared_ptr<Connection> find(const pcpp::IPAddress& src_ip, const pcpp::IPAddress& dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol);
+		std::shared_ptr<Connection> find(
+			const pcpp::IPAddress &clientIp,
+			const pcpp::IPAddress& srcIp,
+			const pcpp::IPAddress& dstIp,
+			uint16_t srcPort,
+			uint16_t dstPort,
+			Protocol protocol
+		);
 
 		[[nodiscard]] std::unordered_map<std::string, std::shared_ptr<Connection>>& getConnections();
 
 	protected:
-		static std::string getKey(const pcpp::IPAddress& src_ip, const pcpp::IPAddress& dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol);
+		static std::string getKey(
+			const pcpp::IPAddress &clientIp,
+			const pcpp::IPAddress& srcIp,
+			const pcpp::IPAddress& dstIp,
+			uint16_t srcPort,
+			uint16_t dstPort,
+			Protocol protocol
+		);
 };

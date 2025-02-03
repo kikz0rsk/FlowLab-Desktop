@@ -1,16 +1,18 @@
 #pragma once
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <pcapplusplus/IpAddress.h>
 #include <winsock2.h>
+#include <pcapplusplus/IPLayer.h>
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
+#include "client.h"
 #include "dns_manager.h"
-#include "logger.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "ndpi.h"
@@ -24,11 +26,11 @@ class Connection {
 	public:
 		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1200;
 
+		enum class IpVersion {
+			IPV4,
+			IPV6
+		};
 	protected:
-		pcpp::IPAddress originHostIp;
-		std::string originHostIpStr;
-		uint16_t originHostPort;
-
 		pcpp::IPAddress srcIp;
 		pcpp::IPAddress dstIp;
 		uint16_t srcPort{};
@@ -38,10 +40,9 @@ class Connection {
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
 		SOCKET socket{};
-		SOCKET deviceSocket{};
 		std::vector<uint8_t> dataStream{};
 		sockaddr_in originSockAddr{};
-		int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
+		unsigned int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
 
 		std::shared_mutex mutex{};
 
@@ -53,23 +54,22 @@ class Connection {
 		ndpi::ndpi_protocol ndpiProtocol{};
 		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
 		std::shared_ptr<DnsManager> dnsManager;
+		std::shared_ptr<Client> client;
 
 	public:
 		Connection(
-			pcpp::IPAddress originHostIp,
-			uint16_t originHostPort,
+			std::shared_ptr<Client> client,
 			pcpp::IPAddress src_ip,
 			pcpp::IPAddress dst_ip,
 			uint16_t src_port,
 			uint16_t dst_port,
 			Protocol protocol,
-			SOCKET deviceSocket,
 			ndpi::ndpi_detection_module_struct *ndpiStruct
 		);
 
 		virtual ~Connection();
 
-		virtual void processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) = 0;
+		virtual void processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
 
 		virtual void sendDataToRemote(std::vector<uint8_t> &data) = 0;
 
@@ -125,10 +125,6 @@ class Connection {
 
 		[[nodiscard]] const std::vector<uint8_t> &getDataStream() const;
 
-		[[nodiscard]] const pcpp::IPAddress &getOriginHostIp() const;
-
-		[[nodiscard]] uint16_t getOriginHostPort() const;
-
 		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
 
 		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const;
@@ -140,4 +136,12 @@ class Connection {
 		[[nodiscard]] ndpi::ndpi_flow_struct* getNdpiFlow() const;
 
 		void log(const std::string& msg) const;
+
+		bool isIpv6() const;
+
+		[[nodiscard]] virtual std::unique_ptr<pcpp::Layer> buildIpLayer();
+
+		[[nodiscard]] std::shared_ptr<Client> getClient() const;
+
+		virtual void closeAll();
 };

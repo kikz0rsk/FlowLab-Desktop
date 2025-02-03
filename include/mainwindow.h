@@ -10,6 +10,7 @@
 #include "connection_manager.h"
 #include "dns_manager.h"
 #include "logswindow.h"
+#include "proxy_service.h"
 
 class DnsPage;
 class ConnectionsPage;
@@ -27,11 +28,11 @@ class MainWindow : public QMainWindow
 	Q_OBJECT
 
 	public:
-		MainWindow(QWidget *parent = nullptr);
+		MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *parent = nullptr);
 		~MainWindow();
 
 		void actionShow_logs_clicked();
-		ndpi::ndpi_detection_module_struct *ndpiStruct;
+
 
 	signals:
 		void setStatusBarMessage(std::string msg);
@@ -41,23 +42,30 @@ class MainWindow : public QMainWindow
 
 	private:
 		Ui::MainWindow *ui;
-		std::thread thread;
-		SOCKET serverSocket;
-		SOCKET clientSocket;
-		std::atomic_bool stopFlag = false;
-		std::unique_ptr<LogsWindow> logsWindow;
-		ConnectionManager connections;
-		std::shared_ptr<DnsManager> dnsManager;
 
+		std::unique_ptr<LogsWindow> logsWindow;
+		std::shared_ptr<DnsManager> dnsManager;
+		std::shared_ptr<ProxyService> proxyService;
 		DnsPage *dnsPage;
 		ConnectionsPage *connectionsPage;
 
-		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
-
-		void threadRoutine();
-		static std::string getKey(const pcpp::IPAddress &src_ip, const pcpp::IPAddress &dst_ip, uint16_t src_port, uint16_t dst_port, Protocol protocol);
-		void packetLoop();
-		void sendFromDevice();
 		static void readExactly(SOCKET socket, char *buffer, int length);
+
+	public:
+		[[nodiscard]] std::shared_ptr<DnsManager> getDnsManager() const {
+			return dnsManager;
+		}
+
+		[[nodiscard]] std::shared_ptr<ProxyService> getProxyService() const {
+			return proxyService;
+		}
+
+		[[nodiscard]] DnsPage * getDnsPage() const {
+			return dnsPage;
+		}
+
+		[[nodiscard]] ConnectionsPage * getConnectionsPage() const {
+			return connectionsPage;
+		}
 };
 #endif// MAINWINDOW_H

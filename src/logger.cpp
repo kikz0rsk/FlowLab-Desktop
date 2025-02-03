@@ -14,7 +14,7 @@ Logger & Logger::get() {
 
 void Logger::log(const std::string &message) {
 	std::lock_guard lock(mutex);
-	logs.emplace_back(message);
+	// logs.emplace_back(message);
 	std::cout << message << std::endl;
 	for (const auto &callback : callbacks) {
 		callback->operator()(message);

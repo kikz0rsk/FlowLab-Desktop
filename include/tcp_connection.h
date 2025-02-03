@@ -2,6 +2,7 @@
 
 #include <thread>
 
+#include "client.h"
 #include "connection.h"
 #include "tcp_status.h"
 
@@ -11,7 +12,6 @@ class TcpConnection : public Connection {
 		std::atomic_uint32_t ourSequenceNumber = 0;
 		unsigned long long ourWindowSize = 65'535;
 		unsigned long long remoteWindowSize = 65'535;
-		std::thread connectingThread;
 		uint32_t finSequenceNumber = 0;
 		unsigned long long unAckedBytes = 0;
 		unsigned int lastRemoteAckedNum = 0;
@@ -22,13 +22,11 @@ class TcpConnection : public Connection {
 
 	public:
 		TcpConnection(
-			pcpp::IPAddress originHostIp,
-			uint16_t originHostPort,
+			std::shared_ptr<Client> client,
 			const pcpp::IPAddress &src_ip,
 			const pcpp::IPAddress &dst_ip,
 			uint16_t src_port,
 			uint16_t dst_port,
-			SOCKET deviceSocket,
 			ndpi::ndpi_detection_module_struct *ndpiStruct
 		);
 
@@ -42,7 +40,7 @@ class TcpConnection : public Connection {
 
 		void sendSynAck();
 
-		void processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) override;
+		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
 		void openSocket();
 
@@ -71,4 +69,6 @@ class TcpConnection : public Connection {
 		[[nodiscard]] TcpStatus getTcpStatus() const;
 
 		void setTcpStatus(TcpStatus tcpStatus);
+
+		void closeAll() override;
 };

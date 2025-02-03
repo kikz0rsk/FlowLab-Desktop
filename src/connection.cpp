@@ -1,39 +1,33 @@
 #include "connection.h"
 
-#include <iostream>
 #include <utility>
-#include <pcapplusplus/UdpLayer.h>
+#include <pcapplusplus/IPv4Layer.h>
+#include <pcapplusplus/IPv6Layer.h>
 
-#include "packet_utils.h"
+#include "client.h"
+#include "logger.h"
 #include "remote_socket_status.h"
 #include "socket_utils.h"
 
 Connection::Connection(
-	pcpp::IPAddress originHostIp,
-	uint16_t originHostPort,
+	std::shared_ptr<Client> client,
 	pcpp::IPAddress src_ip,
 	pcpp::IPAddress dst_ip,
 	uint16_t src_port,
 	uint16_t dst_port,
 	Protocol protocol,
-	SOCKET deviceSocket,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) :
-	originHostIp(originHostIp),
-	originHostIpStr(originHostIp.toString()),
-	originHostPort(originHostPort),
 	srcIp(src_ip),
 	dstIp(dst_ip),
 	srcPort(src_port),
 	dstPort(dst_port),
 	protocol(protocol),
-	deviceSocket(deviceSocket),
-	ndpiStr(ndpiStruct) {
+	ndpiStr(ndpiStruct),
+	client(client) {
 	dataStream.reserve(5'000);
-	originSockAddr = sockaddr_in{AF_INET, htons(originHostPort)};
-	originSockAddr.sin_addr.s_addr = inet_addr(originHostIpStr.c_str());
 
-	ndpiFlow = (ndpi::ndpi_flow_struct *) calloc(1, sizeof(ndpi::ndpi_flow_struct));
+	ndpiFlow = new ndpi::ndpi_flow_struct();
 }
 
 Connection::~Connection() {
@@ -49,13 +43,31 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
-	int res = SocketUtils::writeExactly(
-		deviceSocket,
+	u_long mode = 0;// Blocking mode
+	ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
+
+	// TODO problem s SocketUtils::writeExactly
+	int res = send(
+		client->getClientSocket(),
 		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
-		packet.getRawPacketReadOnly()->getRawDataLen()
+		packet.getRawPacketReadOnly()->getRawDataLen(),
+		0
 	);
+	const auto errCode = WSAGetLastError();
+
+	mode = 1;// Non-blocking mode
+	ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
+
+	// if (sent != packet.getRawPacketReadOnly()->getRawDataLen()) {
+	// 	log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+	// }
 	if (res == SOCKET_ERROR) {
-		log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+		if (errCode == WSAEWOULDBLOCK) {
+			log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
+		}
+		log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
+	} else if (res != packet.getRawPacketReadOnly()->getRawDataLen()) {
+		log("sendToDeviceSocket send() failed to send all data");
 	}
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
@@ -138,6 +150,9 @@ RemoteSocketStatus Connection::getRemoteSocketStatus() const {
 }
 
 void Connection::setRemoteSocketStatus(RemoteSocketStatus status) {
+	if (remoteSocketStatus != status) {
+		log("Remote socket status changed from " + remoteSocketStatusToString(remoteSocketStatus) + " to " + remoteSocketStatusToString(status));
+	}
 	remoteSocketStatus = status;
 }
 
@@ -147,14 +162,6 @@ SOCKET Connection::getSocket() const {
 
 const std::vector<uint8_t> & Connection::getDataStream() const {
 	return dataStream;
-}
-
-const pcpp::IPAddress & Connection::getOriginHostIp() const {
-	return originHostIp;
-}
-
-uint16_t Connection::getOriginHostPort() const {
-	return originHostPort;
 }
 
 const sockaddr_in & Connection::getDestSockAddr() const {
@@ -181,4 +188,32 @@ void Connection::log(const std::string &msg) const {
 	Logger::get().log(
 		std::format("[{}:{} -> {}:{} {}] {}", srcIp.toString(), srcPort, dstIp.toString(), dstPort, protocol == Protocol::TCP ? "TCP" : "UDP", msg)
 	);
+}
+
+bool Connection::isIpv6() const {
+	return srcIp.getType() == pcpp::IPAddress::IPv6AddressType;
+}
+
+std::unique_ptr<pcpp::Layer> Connection::buildIpLayer() {
+	if (isIpv6()) {
+		auto ipLayer = std::make_unique<pcpp::IPv6Layer>(dstIp.getIPv6(), srcIp.getIPv6());
+		ipLayer->getIPv6Header()->hopLimit = 64;
+		ipLayer->getIPv6Header()->nextHeader = this->protocol == Protocol::TCP ? pcpp::PACKETPP_IPPROTO_TCP : pcpp::PACKETPP_IPPROTO_UDP;
+
+		return ipLayer;
+	}
+
+	auto ipLayer = std::make_unique<pcpp::IPv4Layer>(dstIp.getIPv4(), srcIp.getIPv4());
+	ipLayer->getIPv4Header()->timeToLive = 64;
+	ipLayer->getIPv4Header()->protocol = this->protocol == Protocol::TCP ? pcpp::PACKETPP_IPPROTO_TCP : pcpp::PACKETPP_IPPROTO_UDP;
+
+	return ipLayer;
+}
+
+std::shared_ptr<Client> Connection::getClient() const {
+	return client;
+}
+
+void Connection::closeAll() {
+	closeRemoteSocket();
 }

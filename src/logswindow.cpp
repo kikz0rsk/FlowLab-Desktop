@@ -8,7 +8,7 @@ LogsWindow::LogsWindow(QWidget *parent)
     , ui(new Ui::LogsWindow)
 {
     ui->setupUi(this);
-    logCallback = std::make_shared<std::function<void(const std::string &)>>([this] (const std::string &log) {
+    logCallback = std::make_shared<std::function<void(std::string)>>([this] (std::string log) {
         emit onLog(log);
     });
     connect(this, &LogsWindow::onLog, this, &LogsWindow::appendLog);

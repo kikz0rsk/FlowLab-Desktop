@@ -6,7 +6,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
@@ -61,6 +61,9 @@ set(PROJECT_SOURCES
         src/forwarder.cpp
         include/socket_utils.h
         src/socket_utils.cpp
+        include/proxy_service.h
+        src/proxy_service.cpp
+        include/client.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

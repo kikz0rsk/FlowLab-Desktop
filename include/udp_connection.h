@@ -7,19 +7,17 @@
 class UdpConnection : public Connection {
 	public:
 		UdpConnection(
-			pcpp::IPAddress originHostIp,
-			uint16_t originHostPort,
+			std::shared_ptr<Client> client,
 			pcpp::IPAddress src_ip,
 			pcpp::IPAddress dst_ip,
 			uint16_t src_port,
 			uint16_t dst_port,
-			SOCKET deviceSocket,
 			ndpi::ndpi_detection_module_struct *ndpiStruct
 		);
 
 		~UdpConnection() override;
 
-		void processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) override;
+		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
 		void openSocket();
 

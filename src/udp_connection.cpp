@@ -4,36 +4,36 @@
 #include <pcapplusplus/PayloadLayer.h>
 #include <pcapplusplus/UdpLayer.h>
 
+#include <utility>
+
 #include "packet_utils.h"
 
 UdpConnection::UdpConnection(
-	pcpp::IPAddress originHostIp,
-	uint16_t originHostPort,
+	std::shared_ptr<Client> client,
 	pcpp::IPAddress src_ip,
 	pcpp::IPAddress dst_ip,
 	uint16_t src_port,
 	uint16_t dst_port,
-	SOCKET deviceSocket,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
-) : Connection(originHostIp, originHostPort, src_ip, dst_ip, src_port, dst_port, Protocol::UDP, deviceSocket, ndpiStruct) {}
+) : Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::UDP, ndpiStruct) {}
 
 UdpConnection::~UdpConnection() {
 	UdpConnection::closeRemoteSocket();
 }
 
-void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
+void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
 		openSocket();
 	}
 
-	const auto udpLayer = dynamic_cast<pcpp::UdpLayer *>(ipv4Layer->getNextLayer());
+	const auto udpLayer = dynamic_cast<pcpp::UdpLayer *>(networkLayer->getNextLayer());
 	if (udpLayer == nullptr) {
 		log("Received packet is not UDP");
 
 		return;
 	}
 
-	processDpi(ipv4Layer->getDataPtr(0), ipv4Layer->getDataLen());
+	processDpi(networkLayer->getDataPtr(0), networkLayer->getDataLen());
 	sentPacketCount++;
 
 	if (udpLayer->getLayerPayloadSize() == 0) {
@@ -52,32 +52,54 @@ void UdpConnection::processPacketFromDevice(pcpp::IPv4Layer *ipv4Layer) {
 }
 
 void UdpConnection::openSocket() {
-	socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (isIpv6()) {
+		socket = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+	} else {
+		socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	}
+
 	if (socket == INVALID_SOCKET) {
 		log("socket() failed: " + std::to_string(WSAGetLastError()));
+		closeRemoteSocket();
 
 		return;
 	}
 
-	auto addr = sockaddr_in{AF_INET, htons(0), INADDR_ANY};
-	int res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+	int res;
+	if (isIpv6()) {
+		auto addr = ndpi::sockaddr_in6{AF_INET6, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+	} else {
+		auto addr = sockaddr_in{AF_INET, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+	}
+
 	if (res == SOCKET_ERROR) {
 		log("bind() failed: " + std::to_string(WSAGetLastError()));
+		closeRemoteSocket();
 
 		return;
 	}
 
 	auto dstIpStr = dstIp.toString();
-	auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
-	destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
-	res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
+	if (isIpv6()) {
+		auto destSockAddr = ndpi::sockaddr_in6{AF_INET6, htons(dstPort)};
+		inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
+		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
+	} else {
+		auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
+		destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
+		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
+	}
+
 	if (res == SOCKET_ERROR) {
 		log("connect() failed: " + std::to_string(WSAGetLastError()));
+		closeRemoteSocket();
 
 		return;
 	}
 
-	remoteSocketStatus = RemoteSocketStatus::ESTABLISHED;
+	setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 }
 
 void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
@@ -85,7 +107,7 @@ void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
 }
 
 void UdpConnection::closeRemoteSocket() {
-	remoteSocketStatus = RemoteSocketStatus::CLOSED;
+	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	closesocket(socket);
 }
 
@@ -95,23 +117,24 @@ std::vector<uint8_t> UdpConnection::read() {
 	u_long mode = 1;// Non-blocking mode
 	ioctlsocket(socket, FIONBIO, &mode);
 	int length = recv(socket, buffer.data(), buffer.size(), 0);
+	const auto error = WSAGetLastError();
 
 	mode = 0;	// Blocking mode
 	ioctlsocket(socket, FIONBIO, &mode);
 
-	if (length == 0) {
-		// Connection closed
+	if (length == SOCKET_ERROR) {
+		if (error == WSAEWOULDBLOCK) {
+			return {};
+		}
+
+		log("recv() failed: " + std::to_string(error));
 		closeRemoteSocket();
 
 		return {};
 	}
 
-	if (length == SOCKET_ERROR) {
-		if (WSAGetLastError() == WSAEWOULDBLOCK) {
-			return {};
-		}
-
-		log("recv() failed: " + std::to_string(WSAGetLastError()));
+	if (length == 0) {
+		// Connection closed
 		closeRemoteSocket();
 
 		return {};
@@ -127,9 +150,7 @@ std::vector<uint8_t> UdpConnection::read() {
 }
 
 std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) {
-	auto ipLayer = new pcpp::IPv4Layer(dstIp.getIPv4(), srcIp.getIPv4());
-	ipLayer->getIPv4Header()->timeToLive = 64;
-	ipLayer->getIPv4Header()->protocol = pcpp::IPProtocolTypes::PACKETPP_IPPROTO_UDP;
+	pcpp::Layer* ipLayer = buildIpLayer().release();
 
 	auto udpLayer = new pcpp::UdpLayer(dstPort, srcPort);
 	auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
