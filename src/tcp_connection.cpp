@@ -288,11 +288,11 @@ void TcpConnection::openSocket() {
 
 	int res;
 	if (isIpv6()) {
-		auto addr = ndpi::sockaddr_in6{AF_INET6, htons(0), INADDR_ANY};
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(ndpi::sockaddr_in6));
+		ndpi::sockaddr_in6 addr{AF_INET6, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	} else {
-		auto addr = sockaddr_in{AF_INET, htons(0), INADDR_ANY};
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+		sockaddr_in addr{AF_INET, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	}
 
 	if (res == SOCKET_ERROR) {

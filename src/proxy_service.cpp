@@ -74,6 +74,35 @@ void ProxyService::stop() {
 	}
 }
 
+void ProxyService::registerConnectionCallback(const OnConnectionCallback &callback) {
+	onConnectionCallbacks.emplace(callback);
+}
+
+void ProxyService::unregisterConnectionCallback(OnConnectionCallback callback) {
+	for (auto it = onConnectionCallbacks.begin(); it != onConnectionCallbacks.end(); ++it) {
+		if (*it == callback) {
+			onConnectionCallbacks.erase(it);
+			break;
+		}
+	}
+}
+
+std::shared_ptr<ConnectionManager> ProxyService::getConnections() const {
+	return connections;
+}
+
+std::shared_ptr<DnsManager> ProxyService::getDnsManager() const {
+	return dnsManager;
+}
+
+std::shared_ptr<pcpp::PcapNgFileWriterDevice> ProxyService::getPcapWriter() const {
+	return pcapWriter;
+}
+
+ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() const {
+	return ndpiStruct;
+}
+
 void ProxyService::threadRoutine() {
 	serverSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (serverSocket == INVALID_SOCKET) {
@@ -527,7 +556,9 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	}
 
 	if (newConnection) {
-		// connectionsPage->addConnection(connection);
+		for (const auto& callback : onConnectionCallbacks) {
+			callback->operator()(true, connection);
+		}
 	}
 
 	connection->processPacketFromDevice(networkLayer);

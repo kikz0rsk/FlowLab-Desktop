@@ -7,6 +7,7 @@
 
 class ConnectionManager {
 	protected:
+		unsigned long long orderNum = 0;
 		int maxConnections = 1000;
 		std::unordered_map<std::string, std::shared_ptr<Connection>> connections;
 

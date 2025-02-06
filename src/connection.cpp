@@ -225,3 +225,11 @@ std::shared_ptr<Client> Connection::getClient() const {
 void Connection::closeAll() {
 	closeRemoteSocket();
 }
+
+unsigned long long Connection::getOrderNum() const {
+	return orderNum;
+}
+
+void Connection::setOrderNum(unsigned long long order_num) {
+	orderNum = order_num;
+}

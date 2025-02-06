@@ -1,5 +1,7 @@
 #include "connections_page.h"
 
+#include <utility>
+
 #include "syntax_highlighter.h"
 #include "ui_connections_page.h"
 #include "ndpi.h"
@@ -15,12 +17,19 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	connect(ui->utf16Button, &QPushButton::clicked, this, &ConnectionsPage::utf16Button_clicked);
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
-	this->model.setHorizontalHeaderLabels({"Source IP", "Source Port", "Destination IP", "Destination Port", "L2 Protocol"});
+	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "L2 Protocol"});
 	ui->connectionsList->setModel(&model);
+	onConnectionCallback = std::make_shared<std::function<void (bool, std::shared_ptr<Connection>)>>(
+		[this](bool added, std::shared_ptr<Connection> connection) {
+			addConnection(std::move(connection));
+		}
+	);
+	mainWindow.getProxyService()->registerConnectionCallback(onConnectionCallback);
 }
 
 ConnectionsPage::~ConnectionsPage() {
 	delete ui;
+	mainWindow.getProxyService()->unregisterConnectionCallback(onConnectionCallback);
 }
 
 void ConnectionsPage::utf8Button_clicked() {
@@ -42,7 +51,7 @@ void ConnectionsPage::utf16Button_clicked() {
 }
 
 void ConnectionsPage::listView_activated(const QModelIndex &index) {
-	auto connection = model.index(index.row(), 0).data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
+	auto connection = model.index(index.row(), 1).data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
 	if (!connection) {
 		return;
 	}
@@ -71,7 +80,7 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 	ndpi::ndpi_init_serializer(ndpiSerializer.get(), ndpi::ndpi_serialization_format::ndpi_serialization_format_json);
 	ndpi::ndpi_dpi2json(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiFlow(), connection->getNdpiProtocol(), ndpiSerializer.get());
 	std::uint32_t length{};
-	char* buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
+	char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
 	ui->ndpiJson->setPlainText(QString::fromUtf8(buf, length));
 
 	if (auto tcpConnection = std::dynamic_pointer_cast<TcpConnection>(connection)) {
@@ -82,22 +91,13 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 }
 
 void ConnectionsPage::addConnection(std::shared_ptr<Connection> connection) {
-	// auto* row = new QStandardItem();
-	auto* srcIp = new QStandardItem(QString::fromStdString(connection->getSrcIp().toString()));
-	srcIp->setData(QVariant::fromValue(connection));
-	auto* srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
-	auto* dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
-	auto* dstPort = new QStandardItem(QString::number(connection->getDstPort()));
-	auto* protocol = new QStandardItem(connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP");
-	// row->appendRow({srcIp, srcPort, dstIp, dstPort, protocol});
-	// row->setData(QVariant::fromValue(connection));
-	// auto *item = new QStandardItem(
-	// 	QString::fromStdString(
-	// 		connection->getSrcIp().toString()
-	// 			+ ":" + std::to_string(connection->getSrcPort()) + " -> "
-	// 			+ connection->getDstIp().toString() + ":" + std::to_string(connection->getDstPort())
-	// 			+ " " + (connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP")
-	// 	)
-	// );
-	model.insertRow(0, {srcIp, srcPort, dstIp, dstPort, protocol});
+	auto *orderNum = new QStandardItem(QString::number(connection->getOrderNum()));
+	auto *clientIp = new QStandardItem(QString::fromStdString(connection->getClient()->getClientIp().toString()));
+	clientIp->setData(QVariant::fromValue(connection));
+	auto *srcIp = new QStandardItem(QString::fromStdString(connection->getSrcIp().toString()));
+	auto *srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
+	auto *dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
+	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
+	auto *protocol = new QStandardItem(connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP");
+	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, protocol});
 }

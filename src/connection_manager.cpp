@@ -11,6 +11,7 @@ void ConnectionManager::addConnection(const std::shared_ptr<Connection> &connect
 			connection->getProtocol()
 		)
 	] = connection;
+	connection->setOrderNum(orderNum++);
 }
 
 std::shared_ptr<Connection> ConnectionManager::find(

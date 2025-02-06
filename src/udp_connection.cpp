@@ -67,11 +67,11 @@ void UdpConnection::openSocket() {
 
 	int res;
 	if (isIpv6()) {
-		auto addr = ndpi::sockaddr_in6{AF_INET6, htons(0), INADDR_ANY};
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+		ndpi::sockaddr_in6 addr{AF_INET6, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	} else {
-		auto addr = sockaddr_in{AF_INET, htons(0), INADDR_ANY};
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
+		sockaddr_in addr{AF_INET, htons(0), INADDR_ANY};
+		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	}
 
 	if (res == SOCKET_ERROR) {
@@ -180,7 +180,7 @@ void UdpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 
 		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
-				pcpp::Packet p(100);
+				pcpp::Packet p(udpLayer->getDataLen() + 20);
 				pcpp::DnsLayer dns(udpLayer->getLayerPayload(), udpLayer->getLayerPayloadSize(), udpLayer, &p);
 				dnsManager->processDns(dns);
 			}

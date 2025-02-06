@@ -1,6 +1,7 @@
 #include <QDebug>
 #include <array>
 #include <iostream>
+#include <utility>
 #include <pcapplusplus/SystemUtils.h>
 
 #include "mainwindow.h"
@@ -16,7 +17,7 @@
 #include "syntax_highlighter.h"
 
 MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *parent)	:
-	QMainWindow(parent), ui(new Ui::MainWindow) {
+	QMainWindow(parent), ui(new Ui::MainWindow), proxyService(std::move(proxyService)) {
 	ui->setupUi(this);
 
 	dnsManager = std::make_shared<DnsManager>();

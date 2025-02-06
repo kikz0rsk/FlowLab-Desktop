@@ -24,13 +24,14 @@ namespace pcpp {
 
 class Connection {
 	public:
-		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1200;
+		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1300;
 
 		enum class IpVersion {
 			IPV4,
 			IPV6
 		};
 	protected:
+		unsigned long long orderNum{};
 		pcpp::IPAddress srcIp;
 		pcpp::IPAddress dstIp;
 		uint16_t srcPort{};
@@ -144,4 +145,8 @@ class Connection {
 		[[nodiscard]] std::shared_ptr<Client> getClient() const;
 
 		virtual void closeAll();
+
+		[[nodiscard]] unsigned long long getOrderNum() const;
+
+		void setOrderNum(unsigned long long order_num);
 };
