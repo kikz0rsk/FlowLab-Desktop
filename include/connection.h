@@ -52,7 +52,7 @@ class Connection {
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
 		ndpi::ndpi_flow_struct *ndpiFlow = nullptr;
 		ndpi::ndpi_protocol ndpiProtocol{};
-		std::shared_ptr<pcpp::PcapFileWriterDevice> pcapWriter;
+		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::shared_ptr<Client> client;
 
@@ -129,7 +129,7 @@ class Connection {
 
 		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const;
 
-		void setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter);
+		void setPcapWriter(const std::shared_ptr<pcpp::PcapNgFileWriterDevice> &pcapWriter);
 
 		void setDnsManager(std::shared_ptr<DnsManager> dnsManager);
 

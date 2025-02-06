@@ -38,40 +38,45 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
 	pcpp::RawPacket rawPacket{};
-	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), pcpp::LINKTYPE_IPV4);
+	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
 	pcapWriter->writePacket(rawPacket);
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
-	u_long mode = 0;// Blocking mode
-	ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
-
-	// TODO problem s SocketUtils::writeExactly
-	int res = send(
-		client->getClientSocket(),
-		reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
-		packet.getRawPacketReadOnly()->getRawDataLen(),
-		0
+	this->client->getUnencryptedQueueToDevice().emplace(
+		packet.getRawPacketReadOnly()->getRawData(),
+		packet.getRawPacketReadOnly()->getRawData() + packet.getRawPacketReadOnly()->getRawDataLen()
 	);
-	const auto errCode = WSAGetLastError();
-	if (res == SOCKET_ERROR) {
-		log("sendToDeviceSocket send() returned: " + std::to_string(errCode));
-	}
 
-	mode = 1;// Non-blocking mode
-	ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
-
-	// if (sent != packet.getRawPacketReadOnly()->getRawDataLen()) {
-	// 	log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+	// u_long mode = 0;// Blocking mode
+	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
+	//
+	// // TODO problem s SocketUtils::writeExactly
+	// int res = send(
+	// 	client->getClientSocket(),
+	// 	reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
+	// 	packet.getRawPacketReadOnly()->getRawDataLen(),
+	// 	0
+	// );
+	// const auto errCode = WSAGetLastError();
+	// if (res == SOCKET_ERROR) {
+	// 	log("sendToDeviceSocket send() returned: " + std::to_string(errCode));
 	// }
-	if (res == SOCKET_ERROR) {
-		if (errCode == WSAEWOULDBLOCK) {
-			log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
-		}
-		log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
-	} else if (res != packet.getRawPacketReadOnly()->getRawDataLen()) {
-		log("sendToDeviceSocket send() failed to send all data");
-	}
+	//
+	// mode = 1;// Non-blocking mode
+	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
+	//
+	// // if (sent != packet.getRawPacketReadOnly()->getRawDataLen()) {
+	// // 	log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+	// // }
+	// if (res == SOCKET_ERROR) {
+	// 	if (errCode == WSAEWOULDBLOCK) {
+	// 		log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
+	// 	}
+	// 	log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
+	// } else if (res != packet.getRawPacketReadOnly()->getRawDataLen()) {
+	// 	log("sendToDeviceSocket send() failed to send all data");
+	// }
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
 	receivedPacketCount++;
@@ -175,7 +180,7 @@ ndpi::ndpi_protocol Connection::getNdpiProtocol() const {
 	return ndpiProtocol;
 }
 
-void Connection::setPcapWriter(const std::shared_ptr<pcpp::PcapFileWriterDevice> &pcapWriter) {
+void Connection::setPcapWriter(const std::shared_ptr<pcpp::PcapNgFileWriterDevice> &pcapWriter) {
 	Connection::pcapWriter = pcapWriter;
 }
 

@@ -47,7 +47,7 @@ ProxyService::~ProxyService() {
 
 void ProxyService::start() {
 	stopFlag = false;
-	pcapWriter = std::make_shared<pcpp::PcapFileWriterDevice>("output.pcapng", pcpp::LINKTYPE_IPV4);
+	pcapWriter = std::make_shared<pcpp::PcapNgFileWriterDevice>("output.pcapng");
 	if (!pcapWriter->open()){
 		std::cerr << "Cannot open output.pcap for writing" << std::endl;
 		exit(210);
@@ -185,7 +185,14 @@ void ProxyService::acceptClient4() {
 		port = ntohs(addr->sin6_port);
 	}
 
-	this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
+	auto& client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
+	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
+	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
+	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>();
+	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
+	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
+	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
+	client->setTlsServer(server);
 	Logger::get().log("Accepted client from " + clientIp.toString());
 }
 
@@ -217,7 +224,14 @@ void ProxyService::acceptClient6() {
 		port = ntohs(addr->sin6_port);
 	}
 
-	this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
+	auto& client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
+	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
+	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
+	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>();
+	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
+	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
+	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
+	client->setTlsServer(server);
 	Logger::get().log("Accepted client from " + clientIp.toString());
 }
 
@@ -231,6 +245,7 @@ void ProxyService::packetLoop() {
 	FD_ZERO(&exceptionFds);
 	for (const auto& client : clients) {
 		FD_SET(client->getClientSocket(), &readFds);
+		FD_SET(client->getClientSocket(), &writeFds);
 	}
 	std::vector<std::shared_ptr<Connection>> connectionsInFd{};
 	connectionsInFd.reserve(connections->getConnections().size());
@@ -262,20 +277,44 @@ void ProxyService::packetLoop() {
 
 	for (auto it = this->clients.begin(); it != this->clients.end();) {
 		const auto& client = *it;
-		if (FD_ISSET(client->getClientSocket(), &readFds)) {
-			try {
+		try {
+			if (FD_ISSET(client->getClientSocket(), &readFds)) {
+				readTlsData(client);
 				sendFromDevice(client);
-			} catch (const SocketUtils::EofException &e) {
-				Logger::get().log("Client closed connection");
-				cleanUpAfterClient(client);
-				it = clients.erase(it);
-				continue;
-			} catch (const SocketUtils::SocketError &e) {
-				Logger::get().log("Socket error: " + std::string(e.what()));
-				cleanUpAfterClient(client);
-				it = clients.erase(it);
-				continue;
 			}
+			if (FD_ISSET(client->getClientSocket(), &writeFds)) {
+				if (!client->getUnencryptedQueueToDevice().empty()) {
+					const auto& data = client->getUnencryptedQueueToDevice().front();
+					client->getTlsServer()->send(data);
+					client->getUnencryptedQueueToDevice().pop();
+				}
+				if (!client->getEncryptedQueueToDevice().empty()) {
+					auto& data = client->getEncryptedQueueToDevice();
+					int res = SocketUtils::write(client->getClientSocket(), reinterpret_cast<char *>(data.data()), data.size());
+					if (res != SOCKET_ERROR) {
+						data.erase(data.begin(), data.begin() + res);
+						Logger::get().log("Sent " + std::to_string(res) + " bytes to client");
+					}
+				}
+				// try {
+				// 	const auto& data = client->getUnencryptedQueueToDevice().front();
+				// 	client->getTlsServer()->send(data);
+				// 	SocketUtils::writeExactlyThrowBlock(client->getClientSocket(), reinterpret_cast<const char *>(data.data()), data.size());
+				// 	client->getUnencryptedQueueToDevice().pop();
+				// } catch (const SocketUtils::WouldBlockException& e) {
+				//
+				// }
+			}
+		} catch (const SocketUtils::EofException &e) {
+			Logger::get().log("Client closed connection");
+			cleanUpAfterClient(client);
+			it = clients.erase(it);
+			continue;
+		} catch (const SocketUtils::SocketError &e) {
+			Logger::get().log("Socket error: " + std::string(e.what()));
+			cleanUpAfterClient(client);
+			it = clients.erase(it);
+			continue;
 		}
 		++it;
 	}
@@ -291,7 +330,7 @@ void ProxyService::packetLoop() {
 		}
 		if (FD_ISSET(conn->getSocket(), &writeFds)) {
 			conn->writeEvent();
-			Logger::get().log("Write event");
+			// Logger::get().log("Write event");
 		}
 		if (FD_ISSET(conn->getSocket(), &exceptionFds)) {
 			conn->exceptionEvent();
@@ -299,52 +338,70 @@ void ProxyService::packetLoop() {
 	}
 }
 
-void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
+void ProxyService::readTlsData(std::shared_ptr<Client> client) {
+	auto server = client->getTlsServer();
 	std::array<char, 65535> buffer{};
+	const int bytesRead = SocketUtils::read(client->getClientSocket(), buffer.data(), buffer.size());
+	if (bytesRead == SOCKET_ERROR) {
+		const int error = WSAGetLastError();
+		if (error == WSAEWOULDBLOCK) {
+			return;
+		}
+		throw SocketUtils::SocketError(error);
+	}
+	Logger::get().log("Received " + std::to_string(bytesRead) + " TLS bytes from client");
+	server->received_data(std::span(reinterpret_cast<uint8_t*>(buffer.data()), bytesRead));
+}
+
+void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
+	if (client->getUnencryptedQueueFromDevice().empty()) {
+		return;
+	}
+
+	// std::array<char, 65535> buffer{};
+	auto& buffer = client->getUnencryptedQueueFromDevice();
+	if (buffer.size() < 20) {
+		return;
+	}
 
 	bool isIpv6 = false;
 	int totalLength{};
 
-	SocketUtils::readExactly(client->getClientSocket(), buffer.data(), 1);
-	if ((buffer[0] >> 4) & 0xF == 6) {
+	// SocketUtils::readExactly(client->getClientSocket(), buffer.data(), 1);
+	if (((buffer[0] >> 4) & 0xF) == 6) {
 		isIpv6 = true;
 	}
 
 	if (isIpv6) {
-		SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 5);
-		const auto payloadLength = static_cast<uint8_t>(buffer[4]) << 8 | static_cast<uint8_t>(buffer[5]);
+		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 5);
+		const auto payloadLength = (buffer[4] << 8) | (buffer[5]);
 		totalLength = payloadLength + 40;
-		SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 6, totalLength - 6);
+		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 6, totalLength - 6);
 	} else {
-		SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 3);
-		totalLength = static_cast<uint8_t>(buffer[2]) << 8 | static_cast<uint8_t>(buffer[3]);
+		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 3);
+		totalLength = (buffer[2] << 8) | (buffer[3]);
 		// Logger::get().log("Received packet of length " + std::to_string(length));
-		SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 4, totalLength - 4);
+		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 4, totalLength - 4);
 	}
 
-	try {
-
-	} catch (const SocketUtils::EofException &e) {
-		this->clients.remove(client);
-		Logger::get().log("Client closed connection");
-
-		return;
-	} catch (const SocketUtils::SocketError &e) {
-		this->clients.remove(client);
-		Logger::get().log("Socket error: " + std::string(e.what()));
-
+	if (buffer.size() < totalLength) {
+		// we don't have the full packet yet
 		return;
 	}
+
+	std::vector packetBuffer(buffer.begin(), buffer.begin() + totalLength);
+	buffer.erase(buffer.begin(), buffer.begin() + totalLength);
 
 	timeval time{};
 	gettimeofday(&time, nullptr);
-	pcpp::RawPacket packet(reinterpret_cast<const uint8_t *>(buffer.data()), totalLength, time, false, pcpp::LINKTYPE_IPV4);
+	pcpp::RawPacket packet(packetBuffer.data(), totalLength, time, false, isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
 	pcpp::Packet parsedPacket(&packet);
 	// Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
 
 	pcpp::IPAddress srcIp;
 	pcpp::IPAddress dstIp;
 
+	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 	pcpp::Layer* networkLayer;
 	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer()); ipv4Layer != nullptr) {
 		srcIp = ipv4Layer->getSrcIPAddress();
@@ -429,12 +486,16 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 					);
 					pcapWriter->writePacket(rawPacket);
 
-					send(
-						client->getClientSocket(),
-						reinterpret_cast<const char *>(rstPacket.getRawPacketReadOnly()->getRawData()),
-						rstPacket.getRawPacketReadOnly()->getRawDataLen(),
-						0
+					client->getUnencryptedQueueToDevice().emplace(
+						rstPacket.getRawPacketReadOnly()->getRawData(),
+						rstPacket.getRawPacketReadOnly()->getRawData() + rstPacket.getRawPacketReadOnly()->getRawDataLen()
 					);
+					// send(
+					// 	client->getClientSocket(),
+					// 	reinterpret_cast<const char *>(rstPacket.getRawPacketReadOnly()->getRawData()),
+					// 	rstPacket.getRawPacketReadOnly()->getRawDataLen(),
+					// 	0
+					// );
 
 					return;
 				}

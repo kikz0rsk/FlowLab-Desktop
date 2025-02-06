@@ -11,6 +11,11 @@ class SocketUtils {
 				const char * what() const noexcept override;
 		};
 
+		class WouldBlockException : public std::exception {
+			public:
+				const char * what() const noexcept override;
+		};
+
 		class SocketError : public std::exception {
 			protected:
 				int errorCode;
@@ -21,6 +26,9 @@ class SocketUtils {
 				const char * what() const noexcept override;
 		};
 
+		static int write(SOCKET socket, const char *buffer, int length);
+		static int read(SOCKET socket, char *buffer, int length);
 		static int readExactly(SOCKET socket, char *buffer, int length);
 		static int writeExactly(SOCKET socket, const char *buffer, int length);
+		static int writeExactlyThrowBlock(SOCKET socket, const char *buffer, int length);
 };
