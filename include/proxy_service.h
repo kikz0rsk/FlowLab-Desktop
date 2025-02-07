@@ -148,6 +148,7 @@ class ProxyService {
 		void acceptClient6();
 		void packetLoop();
 		void readTlsData(std::shared_ptr<Client> client);
-		void sendFromDevice(std::shared_ptr<Client> client);
+
+		bool sendFromDevice(std::shared_ptr<Client> client);
 		void cleanUpAfterClient(std::shared_ptr<Client> client);
 };

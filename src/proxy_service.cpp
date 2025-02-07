@@ -107,7 +107,6 @@ void ProxyService::threadRoutine() {
 	serverSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (serverSocket == INVALID_SOCKET) {
 		std::cerr << "socket() failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -115,7 +114,6 @@ void ProxyService::threadRoutine() {
 	serverSocket6 = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	if (serverSocket6 == INVALID_SOCKET) {
 		std::cerr << "socket() ipv6 failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -124,7 +122,6 @@ void ProxyService::threadRoutine() {
 	int res = bind(serverSocket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
 	if (res == SOCKET_ERROR) {
 		std::cerr << "bind() failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -133,7 +130,6 @@ void ProxyService::threadRoutine() {
 	res = bind(serverSocket6, (SOCKADDR *) &addr6, sizeof(ndpi::sockaddr_in6));
 	if (res == SOCKET_ERROR) {
 		std::cerr << "bind() ipv6 failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -142,7 +138,6 @@ void ProxyService::threadRoutine() {
 	res = ioctlsocket(serverSocket, FIONBIO, &mode);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "failed to set socket to non-blocking: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -150,7 +145,6 @@ void ProxyService::threadRoutine() {
 	res = ioctlsocket(serverSocket6, FIONBIO, &mode);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "failed to set ipv6 socket to non-blocking: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -158,7 +152,6 @@ void ProxyService::threadRoutine() {
 	res = listen(serverSocket, 1);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "listen() failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -166,7 +159,6 @@ void ProxyService::threadRoutine() {
 	res = listen(serverSocket6, 1);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "listen() ipv6 failed: " << WSAGetLastError() << std::endl;
-		WSACleanup();
 
 		return;
 	}
@@ -279,17 +271,20 @@ void ProxyService::packetLoop() {
 	std::vector<std::shared_ptr<Connection>> connectionsInFd{};
 	connectionsInFd.reserve(connections->getConnections().size());
 	for (const auto &conn: connections->getConnections()) {
-		if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 			continue;
 		}
-		if (
-			conn.second->getProtocol() == Protocol::TCP
-			&& conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED
-			&& dynamic_cast<TcpConnection *>(conn.second.get()) != nullptr
-			&& dynamic_cast<TcpConnection *>(conn.second.get())->getTcpStatus() == TcpStatus::CLOSED
-		) {
-			continue;
-		}
+		// if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+		// 	continue;
+		// }
+		// if (
+		// 	conn.second->getProtocol() == Protocol::TCP
+		// 	&& conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED
+		// 	&& dynamic_cast<TcpConnection *>(conn.second.get()) != nullptr
+		// 	&& dynamic_cast<TcpConnection *>(conn.second.get())->getTcpStatus() == TcpStatus::CLOSED
+		// ) {
+		// 	continue;
+		// }
 		FD_SET(conn.second->getSocket(), &readFds);
 		FD_SET(conn.second->getSocket(), &writeFds);
 		FD_SET(conn.second->getSocket(), &exceptionFds);
@@ -309,13 +304,17 @@ void ProxyService::packetLoop() {
 		try {
 			if (FD_ISSET(client->getClientSocket(), &readFds)) {
 				readTlsData(client);
-				sendFromDevice(client);
+
+				bool multiplePackets = false;
+				do {
+					multiplePackets = sendFromDevice(client);
+				} while (multiplePackets);
 			}
 			if (FD_ISSET(client->getClientSocket(), &writeFds)) {
 				if (!client->getUnencryptedQueueToDevice().empty()) {
-					const auto& data = client->getUnencryptedQueueToDevice().front();
-					client->getTlsServer()->send(data);
-					client->getUnencryptedQueueToDevice().pop();
+					auto& data = client->getUnencryptedQueueToDevice().front();
+					client->getTlsConnection()->send(data);
+					data.clear();
 				}
 				if (!client->getEncryptedQueueToDevice().empty()) {
 					auto& data = client->getEncryptedQueueToDevice();
@@ -368,7 +367,7 @@ void ProxyService::packetLoop() {
 }
 
 void ProxyService::readTlsData(std::shared_ptr<Client> client) {
-	auto server = client->getTlsServer();
+	auto server = client->getTlsConnection();
 	std::array<char, 65535> buffer{};
 	const int bytesRead = SocketUtils::read(client->getClientSocket(), buffer.data(), buffer.size());
 	if (bytesRead == SOCKET_ERROR) {
@@ -382,15 +381,15 @@ void ProxyService::readTlsData(std::shared_ptr<Client> client) {
 	server->received_data(std::span(reinterpret_cast<uint8_t*>(buffer.data()), bytesRead));
 }
 
-void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
+bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	if (client->getUnencryptedQueueFromDevice().empty()) {
-		return;
+		return false;
 	}
 
 	// std::array<char, 65535> buffer{};
 	auto& buffer = client->getUnencryptedQueueFromDevice();
 	if (buffer.size() < 20) {
-		return;
+		return false;
 	}
 
 	bool isIpv6 = false;
@@ -415,7 +414,7 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 
 	if (buffer.size() < totalLength) {
 		// we don't have the full packet yet
-		return;
+		return false;
 	}
 
 	std::vector packetBuffer(buffer.begin(), buffer.begin() + totalLength);
@@ -443,15 +442,13 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	} else {
 		Logger::get().log("Received packet is not IPv4 or IPv6, ignoring");
 
-		return;
+		return true;
 	}
 
 	uint16_t srcPort{};
 	uint16_t dstPort{};
 	Protocol protocol = Protocol::UDP;
 	// Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
-
-	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 
 	if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
 		srcPort = tcpPacket->getSrcPort();
@@ -462,9 +459,9 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		dstPort = udpPacket->getDstPort();
 		protocol = Protocol::UDP;
 	} else {
-		Logger::get().log("Ignoring this unsupported packet");
+		Logger::get().log("Received unsupported transport layer");
 
-		return;
+		return true;
 	}
 
 	if (const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
@@ -513,12 +510,12 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 						rstPacket.getRawPacket()->getPacketTimeStamp(),
 						isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4
 					);
-					pcapWriter->writePacket(rawPacket);
 
-					client->getUnencryptedQueueToDevice().emplace(
-						rstPacket.getRawPacketReadOnly()->getRawData(),
-						rstPacket.getRawPacketReadOnly()->getRawData() + rstPacket.getRawPacketReadOnly()->getRawDataLen()
-					);
+					client->getTlsConnection()->send(rstPacket.getRawPacketReadOnly()->getRawData(), rstPacket.getRawPacketReadOnly()->getRawDataLen());
+					// client->getUnencryptedQueueToDevice().emplace(
+					// 	rstPacket.getRawPacketReadOnly()->getRawData(),
+					// 	rstPacket.getRawPacketReadOnly()->getRawData() + rstPacket.getRawPacketReadOnly()->getRawDataLen()
+					// );
 					// send(
 					// 	client->getClientSocket(),
 					// 	reinterpret_cast<const char *>(rstPacket.getRawPacketReadOnly()->getRawData()),
@@ -526,7 +523,7 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 					// 	0
 					// );
 
-					return;
+					return true;
 				}
 			}
 
@@ -562,6 +559,8 @@ void ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	}
 
 	connection->processPacketFromDevice(networkLayer);
+
+	return true;
 }
 
 void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {

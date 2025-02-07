@@ -17,7 +17,7 @@ class Client {
 	std::queue<std::vector<uint8_t>> unencryptedQueueToDevice;
 	std::vector<uint8_t> unencryptedQueueFromDevice;
 	std::vector<uint8_t> encryptedQueueToDevice;
-	std::shared_ptr<Botan::TLS::Server> tlsServer;
+	std::shared_ptr<Botan::TLS::Server> tlsConnection;
 
 	public:
 		Client(SOCKET clientSocket, pcpp::IPAddress clientIp, uint16_t port) : clientSocket(clientSocket), clientIp(clientIp), port(port) {}
@@ -36,11 +36,11 @@ class Client {
 		}
 
 		void setTlsServer(std::shared_ptr<Botan::TLS::Server> tlsServer) {
-			this->tlsServer = std::move(tlsServer);
+			this->tlsConnection = std::move(tlsServer);
 		}
 
-		[[nodiscard]] std::shared_ptr<Botan::TLS::Server> getTlsServer() {
-			return tlsServer;
+		[[nodiscard]] std::shared_ptr<Botan::TLS::Server> getTlsConnection() {
+			return tlsConnection;
 		}
 
 		void enqueueData(std::vector<uint8_t> data) {

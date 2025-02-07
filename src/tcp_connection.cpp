@@ -417,6 +417,7 @@ std::vector<uint8_t> TcpConnection::read() {
 
 	if (length == 0) {
 		// Connection closed
+		closeRemoteSocket();
 		if (
 			tcpStatus == TcpStatus::FIN_WAIT_1
 			|| tcpStatus == TcpStatus::FIN_WAIT_2 || tcpStatus == TcpStatus::CLOSE_WAIT || shouldSendFinOnAckedEverything
@@ -490,6 +491,7 @@ std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(con
 
 void TcpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 	size_t offset = 0;
+	unsigned int maxSegmentSize = this->maxSegmentSize < DEFAULT_MAX_SEGMENT_SIZE ? this->maxSegmentSize : DEFAULT_MAX_SEGMENT_SIZE;
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + maxSegmentSize, data.size()) - offset;
 		const bool isLast = offset + length == data.size();
@@ -559,5 +561,6 @@ void TcpConnection::setTcpStatus(TcpStatus tcpStatus) {
 
 void TcpConnection::closeAll() {
 	Connection::closeAll();
+	sendRst();
 	setTcpStatus(TcpStatus::CLOSED);
 }

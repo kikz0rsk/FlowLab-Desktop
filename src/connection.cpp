@@ -27,26 +27,41 @@ Connection::Connection(
 	client(client) {
 	dataStream.reserve(5'000);
 
-	ndpiFlow = new ndpi::ndpi_flow_struct();
+	ndpiFlow = std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>(
+		new ndpi::ndpi_flow_struct{},
+		ndpi::ndpi_free_flow
+	);
 }
 
-Connection::~Connection() {
-	ndpi::ndpi_free_flow(ndpiFlow);
-}
+Connection::~Connection() {}
 
 void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
 	pcpp::RawPacket rawPacket{};
-	rawPacket.initWithRawData(packet.getRawPacket()->getRawData(), packet.getRawPacket()->getRawDataLen(), packet.getRawPacket()->getPacketTimeStamp(), isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
+	rawPacket.initWithRawData(
+		packet.getRawPacket()->getRawData(),
+		packet.getRawPacket()->getRawDataLen(),
+		packet.getRawPacket()->getPacketTimeStamp(),
+		isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4
+	);
 	pcapWriter->writePacket(rawPacket);
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
-	this->client->getUnencryptedQueueToDevice().emplace(
-		packet.getRawPacketReadOnly()->getRawData(),
-		packet.getRawPacketReadOnly()->getRawData() + packet.getRawPacketReadOnly()->getRawDataLen()
-	);
+	try {
+		this->client->getTlsConnection()->send(
+			std::span(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen())
+		);
+	} catch (const std::exception &e) {
+		log("failed to send data, closing connection");
+		closeAll();
+	}
+
+	// this->client->getUnencryptedQueueToDevice().emplace(
+	// 	packet.getRawPacketReadOnly()->getRawData(),
+	// 	packet.getRawPacketReadOnly()->getRawData() + packet.getRawPacketReadOnly()->getRawDataLen()
+	// );
 
 	// u_long mode = 0;// Blocking mode
 	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
@@ -85,7 +100,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 void Connection::processDpi(const unsigned char *packetPtr, const unsigned short packetLen) {
 	this->ndpiProtocol = ndpi::ndpi_detection_process_packet(
 		this->ndpiStr,
-		this->ndpiFlow,
+		this->ndpiFlow.get(),
 		packetPtr,
 		packetLen,
 		std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()),
@@ -188,7 +203,7 @@ void Connection::setDnsManager(std::shared_ptr<DnsManager> dnsManager) {
 	this->dnsManager = std::move(dnsManager);
 }
 
-ndpi::ndpi_flow_struct * Connection::getNdpiFlow() const {
+std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct*)>>& Connection::getNdpiFlow() {
 	return ndpiFlow;
 }
 
