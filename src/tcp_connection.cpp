@@ -25,7 +25,7 @@ TcpConnection::TcpConnection(
 	Connection(client, src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct) {}
 
 TcpConnection::~TcpConnection() {
-	TcpConnection::closeRemoteSocket();
+	TcpConnection::gracefullyCloseRemoteSocket();
 }
 
 void TcpConnection::resetState() {
@@ -43,9 +43,9 @@ void TcpConnection::resetState() {
 	setTcpStatus(TcpStatus::CLOSED);
 }
 
-void TcpConnection::closeRemoteSocket() {
+void TcpConnection::gracefullyCloseRemoteSocket() {
 	shutdown(socket, SD_BOTH);
-	closesocket(socket);
+	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 }
 
@@ -79,7 +79,7 @@ void TcpConnection::sendSynAck() {
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(ourWindowSize);
 
 	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
-	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(0));
+	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(3));
 	pcpp::TcpOptionBuilder noop(pcpp::TcpOptionBuilder::NopEolOptionEnumType::Nop);
 
 	tcpLayer->addTcpOption(winScale);
@@ -178,7 +178,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && lastRemoteAckedNum > finSequenceNumber) {
 			setTcpStatus(TcpStatus::FIN_WAIT_2);
 		} else if (tcpStatus == TcpStatus::CLOSE_WAIT && lastRemoteAckedNum > finSequenceNumber) {
-			closeRemoteSocket();
+			gracefullyCloseRemoteSocket();
 			setTcpStatus(TcpStatus::CLOSED);
 		}
 	}
@@ -186,8 +186,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (packetSequenceNumber != ackNumber) {
 		// packet is out of order
 		if (tcpLayer->getTcpHeader()->rstFlag == 1) {
-			closeRemoteSocket();
-			setTcpStatus(TcpStatus::CLOSED);
+			forcefullyCloseAll();
 
 			return;
 		}
@@ -223,8 +222,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	}
 
 	if (tcpLayer->getTcpHeader()->rstFlag == 1) {
-		closeRemoteSocket();
-		setTcpStatus(TcpStatus::CLOSED);
+		forcefullyCloseAll();
 
 		return;
 	}
@@ -234,7 +232,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 			ackNumber += 1;
 			sendAck();
 
-			closeRemoteSocket();
+			gracefullyCloseRemoteSocket();
 			setTcpStatus(TcpStatus::CLOSED);
 
 			return;
@@ -269,7 +267,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 
 void TcpConnection::openSocket() {
 	if (remoteSocketStatus == RemoteSocketStatus::ESTABLISHED) {
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 	}
 
 	if (isIpv6()) {
@@ -342,7 +340,7 @@ void TcpConnection::openSocket() {
 
 		std::cerr << "connect() failed: " << errCode << std::endl;
 		sendRst();
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 	} else {
 		Logger::get().log("Connected to remote socket");
 	}
@@ -408,7 +406,7 @@ std::vector<uint8_t> TcpConnection::read() {
 		}
 
 		log("recv() failed: " + error);
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 		sendRst();
 		setTcpStatus(TcpStatus::CLOSED);
 
@@ -417,7 +415,7 @@ std::vector<uint8_t> TcpConnection::read() {
 
 	if (length == 0) {
 		// Connection closed
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 		if (
 			tcpStatus == TcpStatus::FIN_WAIT_1
 			|| tcpStatus == TcpStatus::FIN_WAIT_2 || tcpStatus == TcpStatus::CLOSE_WAIT || shouldSendFinOnAckedEverything
@@ -463,12 +461,12 @@ void TcpConnection::exceptionEvent() {
 		u_long mode = 0;// Blocking mode
 		ioctlsocket(socket, FIONBIO, &mode);
 		sendRst();
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 		setTcpStatus(TcpStatus::CLOSED);
 	}
 }
 
-std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) {
+std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
 	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
@@ -489,13 +487,13 @@ std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(con
 	return tcpPacket;
 }
 
-void TcpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
+void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 	size_t offset = 0;
 	unsigned int maxSegmentSize = this->maxSegmentSize < DEFAULT_MAX_SEGMENT_SIZE ? this->maxSegmentSize : DEFAULT_MAX_SEGMENT_SIZE;
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + maxSegmentSize, data.size()) - offset;
 		const bool isLast = offset + length == data.size();
-		const auto packet = encapsulateResponseDataToPacket(std::vector(data.begin() + offset, data.begin() + offset + length));
+		const auto packet = encapsulateResponseDataToPacket(std::span(data.begin() + offset, data.begin() + offset + length));
 		if (!packet) {
 			break;
 		}
@@ -559,8 +557,13 @@ void TcpConnection::setTcpStatus(TcpStatus tcpStatus) {
 	this->tcpStatus = tcpStatus;
 }
 
-void TcpConnection::closeAll() {
-	Connection::closeAll();
-	sendRst();
+void TcpConnection::forcefullyCloseAll() {
+	if (this->remoteSocketStatus != RemoteSocketStatus::CLOSED) {
+		closeSocketAndInvalidate();
+		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
+	}
+	if (this->tcpStatus != TcpStatus::CLOSED) {
+		sendRst();
+	}
 	setTcpStatus(TcpStatus::CLOSED);
 }

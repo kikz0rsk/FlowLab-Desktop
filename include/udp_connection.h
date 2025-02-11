@@ -23,11 +23,13 @@ class UdpConnection : public Connection {
 
 		void sendDataToRemote(std::vector<uint8_t> &data) override;
 
-		void closeRemoteSocket() override;
+		void gracefullyCloseRemoteSocket() override;
 
 		std::vector<uint8_t> read() override;
 
-		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) override;
+		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(const std::vector<uint8_t> &data) override;
+		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
+
+		void forcefullyCloseAll() override;
 };

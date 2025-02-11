@@ -18,7 +18,7 @@ UdpConnection::UdpConnection(
 ) : Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::UDP, ndpiStruct) {}
 
 UdpConnection::~UdpConnection() {
-	UdpConnection::closeRemoteSocket();
+	UdpConnection::gracefullyCloseRemoteSocket();
 }
 
 void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
@@ -60,7 +60,7 @@ void UdpConnection::openSocket() {
 
 	if (socket == INVALID_SOCKET) {
 		log("socket() failed: " + std::to_string(WSAGetLastError()));
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 
 		return;
 	}
@@ -76,7 +76,7 @@ void UdpConnection::openSocket() {
 
 	if (res == SOCKET_ERROR) {
 		log("bind() failed: " + std::to_string(WSAGetLastError()));
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 
 		return;
 	}
@@ -94,7 +94,7 @@ void UdpConnection::openSocket() {
 
 	if (res == SOCKET_ERROR) {
 		log("connect() failed: " + std::to_string(WSAGetLastError()));
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 
 		return;
 	}
@@ -106,9 +106,10 @@ void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
-void UdpConnection::closeRemoteSocket() {
+void UdpConnection::gracefullyCloseRemoteSocket() {
+	shutdown(socket, SD_BOTH);
+	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
-	closesocket(socket);
 }
 
 std::vector<uint8_t> UdpConnection::read() {
@@ -128,14 +129,14 @@ std::vector<uint8_t> UdpConnection::read() {
 		}
 
 		log("recv() failed: " + std::to_string(error));
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 
 		return {};
 	}
 
 	if (length == 0) {
 		// Connection closed
-		closeRemoteSocket();
+		gracefullyCloseRemoteSocket();
 
 		return {};
 	}
@@ -149,7 +150,7 @@ std::vector<uint8_t> UdpConnection::read() {
 	return {buffer.begin(), buffer.begin() + length};
 }
 
-std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) {
+std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer* ipLayer = buildIpLayer().release();
 
 	auto udpLayer = new pcpp::UdpLayer(dstPort, srcPort);
@@ -165,11 +166,11 @@ std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(con
 	return udpPacket;
 }
 
-void UdpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
+void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 	size_t offset = 0;
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + DEFAULT_MAX_SEGMENT_SIZE, data.size()) - offset;
-		const auto packet = encapsulateResponseDataToPacket(std::vector(data.begin() + offset, data.begin() + offset + length));
+		const auto packet = encapsulateResponseDataToPacket(std::span(data.begin() + offset, data.begin() + offset + length));
 		if (!packet) {
 			break;
 		}
@@ -190,4 +191,8 @@ void UdpConnection::sendDataToDeviceSocket(const std::vector<uint8_t> &data) {
 
 		offset += length;
 	}
+}
+
+void UdpConnection::forcefullyCloseAll() {
+	gracefullyCloseRemoteSocket();
 }

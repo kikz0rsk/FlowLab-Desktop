@@ -70,7 +70,7 @@ void ProxyService::stop() {
 		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 			continue;
 		}
-		conn.second->closeRemoteSocket();
+		conn.second->gracefullyCloseRemoteSocket();
 	}
 }
 
@@ -566,7 +566,7 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
 	for (const auto& conn : connections->getConnections()) {
 		if (conn.second->getClient() == client) {
-			conn.second->closeAll();
+			conn.second->forcefullyCloseAll();
 		}
 	}
 }

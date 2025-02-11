@@ -55,7 +55,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		);
 	} catch (const std::exception &e) {
 		log("failed to send data, closing connection");
-		closeAll();
+		forcefullyCloseAll();
 	}
 
 	// this->client->getUnencryptedQueueToDevice().emplace(
@@ -237,14 +237,15 @@ std::shared_ptr<Client> Connection::getClient() const {
 	return client;
 }
 
-void Connection::closeAll() {
-	closeRemoteSocket();
-}
-
 unsigned long long Connection::getOrderNum() const {
 	return orderNum;
 }
 
 void Connection::setOrderNum(unsigned long long order_num) {
 	orderNum = order_num;
+}
+
+void Connection::closeSocketAndInvalidate() {
+	closesocket(socket);
+	socket = 0;
 }

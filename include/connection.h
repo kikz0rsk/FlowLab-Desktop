@@ -80,9 +80,9 @@ class Connection {
 
 		virtual void exceptionEvent() {}
 
-		virtual std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) = 0;
+		virtual std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) = 0;
 
-		virtual void sendDataToDeviceSocket(const std::vector<uint8_t> &data) = 0;
+		virtual void sendDataToDeviceSocket(std::span<const uint8_t> data) = 0;
 
 		virtual void sendToDeviceSocket(const pcpp::Packet &packet);
 
@@ -90,7 +90,7 @@ class Connection {
 
 		[[nodiscard]] virtual bool shouldClose() const;
 
-		virtual void closeRemoteSocket() = 0;
+		virtual void gracefullyCloseRemoteSocket() = 0;
 
 		[[nodiscard]] std::shared_lock<std::shared_mutex> getReadLock();
 
@@ -144,9 +144,11 @@ class Connection {
 
 		[[nodiscard]] std::shared_ptr<Client> getClient() const;
 
-		virtual void closeAll();
+		virtual void forcefullyCloseAll() = 0;
 
 		[[nodiscard]] unsigned long long getOrderNum() const;
 
 		void setOrderNum(unsigned long long order_num);
+
+		void closeSocketAndInvalidate();
 };

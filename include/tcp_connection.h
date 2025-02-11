@@ -34,7 +34,7 @@ class TcpConnection : public Connection {
 
 		void resetState();
 
-		void closeRemoteSocket() override;
+		void gracefullyCloseRemoteSocket() override;
 
 		void sendFinAck();
 
@@ -54,9 +54,9 @@ class TcpConnection : public Connection {
 
 		void exceptionEvent() override;
 
-		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(const std::vector<uint8_t> &data) override;
+		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(const std::vector<uint8_t> &data) override;
+		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
 
 		[[nodiscard]] unsigned int getAckNumber() const;
 
@@ -70,5 +70,5 @@ class TcpConnection : public Connection {
 
 		void setTcpStatus(TcpStatus tcpStatus);
 
-		void closeAll() override;
+		void forcefullyCloseAll() override;
 };
