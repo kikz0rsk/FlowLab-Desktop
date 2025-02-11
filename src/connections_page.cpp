@@ -17,7 +17,7 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	connect(ui->utf16Button, &QPushButton::clicked, this, &ConnectionsPage::utf16Button_clicked);
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
-	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "L2 Protocol"});
+	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "L4 Protocol"});
 	ui->connectionsList->setModel(&model);
 	onConnectionCallback = std::make_shared<std::function<void (bool, std::shared_ptr<Connection>)>>(
 		[this](bool added, std::shared_ptr<Connection> connection) {
