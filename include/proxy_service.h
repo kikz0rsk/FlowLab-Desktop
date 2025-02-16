@@ -80,9 +80,9 @@ class ProxyService {
 
 			public:
 				explicit ServerCredentials() {
-					serverCert = Botan::X509_Certificate(R"(D:\Development\projects\network-analyzer-gui\flowlab_server_flowlab_ca.cer)");
-					caCert = Botan::X509_Certificate(R"(D:\Development\projects\network-analyzer-gui\flowlab_ca.cer)");
-					Botan::DataSource_Stream in(R"(D:\Development\projects\network-analyzer-gui\flowlab_server_flowlab_ca.pkcs8)");
+					serverCert = Botan::X509_Certificate(R"(flowlab_server_flowlab_ca.cer)");
+					caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
+					Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");
 					serverKey.reset(Botan::PKCS8::load_key(in).release());
 					caCertStore.add_certificate(caCert);
 				}
