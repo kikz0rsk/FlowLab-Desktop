@@ -1,5 +1,7 @@
 #include "dns_manager.h"
 
+#include "logger.h"
+
 std::shared_ptr<DnsEntry> DnsManager::addDnsEntry(DnsEntry &&entry) {
 	auto res = this->dnsEntries.emplace_back(std::make_shared<DnsEntry>(std::forward<DnsEntry>(entry)));
 	for (const auto &callback : callbacks) {
@@ -25,6 +27,7 @@ void DnsManager::unregisterEventCallback(OnAddCallback callback) {
 }
 
 void DnsManager::processDns(const pcpp::DnsLayer& layer) {
+	Logger::get().log("calling processDns");
 	pcpp::DnsResource *dnsQuery = layer.getFirstAnswer();
 	while (dnsQuery != nullptr) {
 		const auto dnsQueryName = dnsQuery->getName();

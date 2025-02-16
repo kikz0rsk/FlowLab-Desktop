@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -24,7 +25,7 @@ namespace pcpp {
 
 class Connection {
 	public:
-		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1300;
+		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1400;
 
 		enum class IpVersion {
 			IPV4,
@@ -41,7 +42,7 @@ class Connection {
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
 		SOCKET socket{};
-		std::vector<uint8_t> dataStream{};
+		std::deque<uint8_t> dataStream{};
 		sockaddr_in originSockAddr{};
 		unsigned int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
 
@@ -72,7 +73,7 @@ class Connection {
 
 		virtual void processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
 
-		virtual void sendDataToRemote(std::vector<uint8_t> &data) = 0;
+		virtual void sendDataToRemote(std::span<const uint8_t> data) = 0;
 
 		virtual std::vector<uint8_t> read() = 0;
 
@@ -124,7 +125,7 @@ class Connection {
 
 		[[nodiscard]] SOCKET getSocket() const;
 
-		[[nodiscard]] const std::vector<uint8_t> &getDataStream() const;
+		[[nodiscard]] const std::deque<uint8_t> &getDataStream() const;
 
 		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
 

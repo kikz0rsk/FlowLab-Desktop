@@ -20,7 +20,7 @@ MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *pare
 	QMainWindow(parent), ui(new Ui::MainWindow), proxyService(std::move(proxyService)) {
 	ui->setupUi(this);
 
-	dnsManager = std::make_shared<DnsManager>();
+	dnsManager = this->proxyService->getDnsManager();
 	connectionsPage = new ConnectionsPage(*this);
 	dnsPage = new DnsPage(*this, dnsManager);
 

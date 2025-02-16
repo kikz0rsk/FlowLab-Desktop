@@ -46,7 +46,7 @@ class TcpConnection : public Connection {
 
 		void sendAck();
 
-		void sendDataToRemote(std::vector<uint8_t> &data) override;
+		void sendDataToRemote(std::span<const uint8_t> data) override;
 
 		std::vector<uint8_t> read() override;
 

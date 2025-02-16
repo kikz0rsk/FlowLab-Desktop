@@ -25,7 +25,7 @@ Connection::Connection(
 	protocol(protocol),
 	ndpiStr(ndpiStruct),
 	client(client) {
-	dataStream.reserve(5'000);
+	// dataStream.reserve(5'000);
 
 	ndpiFlow = std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>(
 		new ndpi::ndpi_flow_struct{},
@@ -38,13 +38,11 @@ Connection::~Connection() {}
 void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
 
-	pcpp::RawPacket rawPacket{};
-	rawPacket.initWithRawData(
-		packet.getRawPacket()->getRawData(),
+	pcpp::RawPacket rawPacket(packet.getRawPacket()->getRawData(),
 		packet.getRawPacket()->getRawDataLen(),
 		packet.getRawPacket()->getPacketTimeStamp(),
-		isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4
-	);
+		false,
+		isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
 	pcapWriter->writePacket(rawPacket);
 
 	lastPacketSentTime = std::chrono::system_clock::now();
@@ -183,7 +181,7 @@ SOCKET Connection::getSocket() const {
 	return socket;
 }
 
-const std::vector<uint8_t> & Connection::getDataStream() const {
+const std::deque<uint8_t> &Connection::getDataStream() const {
 	return dataStream;
 }
 
@@ -203,7 +201,7 @@ void Connection::setDnsManager(std::shared_ptr<DnsManager> dnsManager) {
 	this->dnsManager = std::move(dnsManager);
 }
 
-std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct*)>>& Connection::getNdpiFlow() {
+std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>& Connection::getNdpiFlow() {
 	return ndpiFlow;
 }
 

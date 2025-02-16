@@ -79,7 +79,7 @@ void TcpConnection::sendSynAck() {
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(ourWindowSize);
 
 	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
-	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(3));
+	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(8));
 	pcpp::TcpOptionBuilder noop(pcpp::TcpOptionBuilder::NopEolOptionEnumType::Nop);
 
 	tcpLayer->addTcpOption(winScale);
@@ -202,17 +202,21 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		return;
 	}
 
-	const unsigned int dataSize = tcpLayer->getLayerPayloadSize();
+	const size_t dataSize = tcpLayer->getLayerPayloadSize();
 	if (dataSize > 0) {
 		const auto dataPtr = tcpLayer->getLayerPayload();
 		{
 			auto writeLock = getWriteLock();
-			dataStream.reserve(dataStream.size() + dataSize);
-			dataStream.insert(dataStream.end(), dataPtr, dataPtr + dataSize);
+			// dataStream.reserve(dataStream.size() + dataSize);
+			if (dataStream.size() < 1'000'000) {
+				dataStream.insert(dataStream.end(), dataPtr, dataPtr + dataSize);
+			}
+
+			// dataStream.emplace_back(dataPtr, dataPtr + dataSize);
 		}
 
-		auto vec = std::vector(dataPtr, dataPtr + tcpLayer->getLayerPayloadSize());
-		sendDataToRemote(vec);
+		// auto vec = std::vector(dataPtr, dataPtr + tcpLayer->getLayerPayloadSize());
+		sendDataToRemote(std::span(dataPtr, dataSize));
 	}
 
 	ackNumber = packetSequenceNumber;
@@ -364,8 +368,11 @@ void TcpConnection::sendAck() {
 	sendToDeviceSocket(packet);
 }
 
-void TcpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
-	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
+void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+	int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
+	if (res != SOCKET_ERROR && res != data.size()) {
+		log("send() failed to send all data");
+	}
 }
 
 std::vector<uint8_t> TcpConnection::read() {
@@ -437,11 +444,14 @@ std::vector<uint8_t> TcpConnection::read() {
 		return {};
 	}
 
-	// {
-	// 	auto writeLock = getWriteLock();
-	// 	dataStream.reserve(dataStream.size() + length);
-	// 	dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
-	// }
+	{
+		auto writeLock = getWriteLock();
+		// dataStream.reserve(dataStream.size() + length);
+		// dataStream.emplace_back(buffer.begin(), buffer.begin() + length);
+		if (dataStream.size() < 1'000'000) {
+			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
+		}
+	}
 
 	return {buffer.begin(), buffer.begin() + length};
 }

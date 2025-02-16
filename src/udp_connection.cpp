@@ -37,17 +37,17 @@ void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	sentPacketCount++;
 
 	if (udpLayer->getLayerPayloadSize() == 0) {
-		std::vector<uint8_t> vec = {};
-		sendDataToRemote(vec);
+		sendDataToRemote(std::span<const uint8_t>{});
 	} else {
 		const auto data = udpLayer->getLayerPayload();
-		std::vector dataVec(data, data + udpLayer->getLayerPayloadSize());
 		{
 			auto writeLock = getWriteLock();
-			dataStream.reserve(dataStream.size() + dataVec.size());
-			dataStream.insert(dataStream.end(), dataVec.begin(), dataVec.end());
+			// dataStream.reserve(dataStream.size() + dataVec.size());
+			if (dataStream.size() < 1'000'000) {
+				dataStream.insert(dataStream.end(), data, data + udpLayer->getLayerPayloadSize());
+			}
 		}
-		sendDataToRemote(dataVec);
+		sendDataToRemote(std::span(data, udpLayer->getLayerPayloadSize()));
 	}
 }
 
@@ -102,7 +102,7 @@ void UdpConnection::openSocket() {
 	setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 }
 
-void UdpConnection::sendDataToRemote(std::vector<uint8_t> &data) {
+void UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
@@ -143,8 +143,11 @@ std::vector<uint8_t> UdpConnection::read() {
 
 	{
 		auto writeLock = getWriteLock();
-		dataStream.reserve(dataStream.size() + length);
-		dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
+		// dataStream.reserve(dataStream.size() + length);
+		if (dataStream.size() < 1'000'000) {
+			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
+		}
+		// dataStream.emplace_back(buffer.begin(), buffer.begin() + length);
 	}
 
 	return {buffer.begin(), buffer.begin() + length};
@@ -181,9 +184,11 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 
 		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
-				pcpp::Packet p(udpLayer->getDataLen() + 20);
-				pcpp::DnsLayer dns(udpLayer->getLayerPayload(), udpLayer->getLayerPayloadSize(), udpLayer, &p);
-				dnsManager->processDns(dns);
+				pcpp::RawPacket rawPacket(packet->getRawPacket()->getRawData(), packet->getRawPacket()->getRawDataLen(), timeval{}, false, isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
+				pcpp::Packet p(&rawPacket);
+				if (const auto dnsLayer = p.getLayerOfType<pcpp::DnsLayer>(); dnsLayer) {
+					dnsManager->processDns(*dnsLayer);
+				}
 			}
 		}
 
