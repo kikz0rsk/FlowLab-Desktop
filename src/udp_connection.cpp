@@ -34,7 +34,7 @@ void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	}
 
 	processDpi(networkLayer->getDataPtr(0), networkLayer->getDataLen());
-	sentPacketCount++;
+	++sentPacketCount;
 
 	if (udpLayer->getLayerPayloadSize() == 0) {
 		sendDataToRemote(std::span<const uint8_t>{});
@@ -103,6 +103,7 @@ void UdpConnection::openSocket() {
 }
 
 void UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+	sentBytes += data.size();
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }
 
@@ -149,6 +150,7 @@ std::vector<uint8_t> UdpConnection::read() {
 		}
 		// dataStream.emplace_back(buffer.begin(), buffer.begin() + length);
 	}
+	receivedBytes += length;
 
 	return {buffer.begin(), buffer.begin() + length};
 }

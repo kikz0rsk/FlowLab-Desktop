@@ -56,6 +56,8 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 		return;
 	}
 
+	ui->sentText->setText(QString::number(connection->getSentPacketCount()) + " packets (" + QString::number(connection->getSentBytes()) + " bytes)");
+	ui->receivedText->setText(QString::number(connection->getReceivedPacketCount()) + " packets (" + QString::number(connection->getReceivedBytes()) + " bytes)");
 	auto readLock = connection->getReadLock();
 	ui->sourceIpText->setText(QString::fromStdString(connection->getSrcIp().toString()));
 	ui->destinationIpText->setText(QString::fromStdString(connection->getDstIp().toString()));

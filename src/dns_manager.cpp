@@ -26,6 +26,31 @@ void DnsManager::unregisterEventCallback(OnAddCallback callback) {
 	}
 }
 
+std::string DnsManager::dnsTypeToString(pcpp::DnsType type) {
+	switch (type) {
+		case pcpp::DNS_TYPE_A:
+			return "A";
+		case pcpp::DNS_TYPE_NS:
+			return "NS";
+		case pcpp::DNS_TYPE_CNAME:
+			return "CNAME";
+		case pcpp::DNS_TYPE_SOA:
+			return "SOA";
+		case pcpp::DNS_TYPE_PTR:
+			return "PTR";
+		case pcpp::DNS_TYPE_MX:
+			return "MX";
+		case pcpp::DNS_TYPE_AAAA:
+			return "AAAA";
+		case pcpp::DNS_TYPE_SRV:
+			return "SRV";
+		case pcpp::DNS_TYPE_TXT:
+			return "TXT";
+		default:
+			return "OTHER";
+	}
+}
+
 void DnsManager::processDns(const pcpp::DnsLayer& layer) {
 	Logger::get().log("calling processDns");
 	pcpp::DnsResource *dnsQuery = layer.getFirstAnswer();
@@ -37,7 +62,7 @@ void DnsManager::processDns(const pcpp::DnsLayer& layer) {
 		}
 
 		DnsEntry& dnsEntry = *dnsEntryPtr;
-		const std::string dnsResponseDataStr = dnsQuery->getData()->toString();
+		const std::string dnsResponseDataStr = dnsTypeToString(dnsQuery->getDnsType()) + ": " + dnsQuery->getData()->toString();
 		if (!dnsEntry.answers.contains(dnsResponseDataStr)) {
 			dnsEntry.answers.insert(dnsResponseDataStr);
 		}

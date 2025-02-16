@@ -21,84 +21,72 @@
      </property>
      <widget class="QTreeView" name="dnsList"/>
      <widget class="QWidget" name="formWidget" native="true">
-      <widget class="QLabel" name="label">
-       <property name="geometry">
-        <rect>
-         <x>9</x>
-         <y>9</y>
-         <width>42</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Domain</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="domainText">
-       <property name="geometry">
-        <rect>
-         <x>59</x>
-         <y>9</y>
-         <width>16</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_2">
-       <property name="geometry">
-        <rect>
-         <x>9</x>
-         <y>31</y>
-         <width>44</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Answers</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="answersText">
-       <property name="geometry">
-        <rect>
-         <x>59</x>
-         <y>31</y>
-         <width>16</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_3">
-       <property name="geometry">
-        <rect>
-         <x>9</x>
-         <y>53</y>
-         <width>43</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Country</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="countryText">
-       <property name="geometry">
-        <rect>
-         <x>59</x>
-         <y>53</y>
-         <width>16</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>Domain</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="domainText">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextInteractionFlag::LinksAccessibleByMouse|Qt::TextInteractionFlag::TextSelectableByKeyboard|Qt::TextInteractionFlag::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Answers</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="answersText">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextInteractionFlag::LinksAccessibleByMouse|Qt::TextInteractionFlag::TextSelectableByKeyboard|Qt::TextInteractionFlag::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Country</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="countryText">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextInteractionFlag::LinksAccessibleByMouse|Qt::TextInteractionFlag::TextSelectableByKeyboard|Qt::TextInteractionFlag::TextSelectableByMouse</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>

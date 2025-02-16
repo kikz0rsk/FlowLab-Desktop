@@ -129,7 +129,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	}
 
 	processDpi(networkLayer->getDataPtr(0), networkLayer->getDataLen());
-	sentPacketCount++;
+	++sentPacketCount;
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
 		resetState();
@@ -369,6 +369,7 @@ void TcpConnection::sendAck() {
 }
 
 void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+	sentBytes += data.size();
 	int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 	if (res != SOCKET_ERROR && res != data.size()) {
 		log("send() failed to send all data");
@@ -452,6 +453,7 @@ std::vector<uint8_t> TcpConnection::read() {
 			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
 		}
 	}
+	receivedBytes += length;
 
 	return {buffer.begin(), buffer.begin() + length};
 }

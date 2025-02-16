@@ -92,7 +92,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// }
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
-	receivedPacketCount++;
+	++receivedPacketCount;
 }
 
 void Connection::processDpi(const unsigned char *packetPtr, const unsigned short packetLen) {
@@ -246,4 +246,20 @@ void Connection::setOrderNum(unsigned long long order_num) {
 void Connection::closeSocketAndInvalidate() {
 	closesocket(socket);
 	socket = 0;
+}
+
+std::atomic_uint64_t Connection::getSentPacketCount() const {
+	return sentPacketCount.load();
+}
+
+std::atomic_uint64_t Connection::getReceivedPacketCount() const {
+	return receivedPacketCount.load();
+}
+
+std::atomic_uint64_t Connection::getSentBytes() const {
+	return sentBytes.load();
+}
+
+std::atomic_uint64_t Connection::getReceivedBytes() const {
+	return receivedBytes.load();
 }

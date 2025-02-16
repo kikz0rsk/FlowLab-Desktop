@@ -27,4 +27,6 @@ class DnsManager {
 		void registerEventCallback(const OnAddCallback &callback);
 
 		void unregisterEventCallback(OnAddCallback callback);
+
+		static std::string dnsTypeToString(pcpp::DnsType type);
 };

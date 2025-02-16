@@ -31,6 +31,7 @@ class Connection {
 			IPV4,
 			IPV6
 		};
+
 	protected:
 		unsigned long long orderNum{};
 		pcpp::IPAddress srcIp;
@@ -48,8 +49,10 @@ class Connection {
 
 		std::shared_mutex mutex{};
 
-		int sentPacketCount = 0;
-		int receivedPacketCount = 0;
+		std::atomic_uint64_t sentPacketCount = 0;
+		std::atomic_uint64_t receivedPacketCount = 0;
+		std::atomic_uint64_t sentBytes = 0;
+		std::atomic_uint64_t receivedBytes = 0;
 
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
 		std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct*)>> ndpiFlow = nullptr;
@@ -152,4 +155,12 @@ class Connection {
 		void setOrderNum(unsigned long long order_num);
 
 		void closeSocketAndInvalidate();
+
+		[[nodiscard]] std::atomic_uint64_t getSentPacketCount() const;
+
+		[[nodiscard]] std::atomic_uint64_t getReceivedPacketCount() const;
+
+		[[nodiscard]] std::atomic_uint64_t getSentBytes() const;
+
+		[[nodiscard]] std::atomic_uint64_t getReceivedBytes() const;
 };
