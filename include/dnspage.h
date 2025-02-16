@@ -25,6 +25,7 @@ class DnsPage : public QWidget
 
 	private slots:
 		void addDnsToTable(std::shared_ptr<DnsEntry> dns);
+		void changeSelectedEntry(const QModelIndex &index);
 
 	private:
 		Ui::DnsPage *ui;
