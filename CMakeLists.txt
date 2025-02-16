@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
 find_package(botan CONFIG REQUIRED)
@@ -138,6 +138,6 @@ target_compile_options(network-analyzer-gui PRIVATE -Wall -Wextra -Wpedantic)
 
 add_custom_command(
         TARGET network-analyzer-gui POST_BUILD
-        COMMAND "D:\\Qt\\6.8.0\\mingw_64\\bin\\windeployqt6.exe"
+        COMMAND "$ENV{QT_PATH}\\bin\\windeployqt6.exe"
         $<TARGET_FILE_DIR:network-analyzer-gui>
 )
