@@ -18,6 +18,10 @@ include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
 include_directories(lib/include/)
 
+option ( TRACY_ENABLE "" ON )
+option ( TRACY_ON_DEMAND "" ON )
+add_subdirectory ( lib/tracy-0.11.1 )
+
 set(PROJECT_SOURCES
         src/main.cpp
         src/mainwindow.cpp
@@ -141,3 +145,5 @@ add_custom_command(
         COMMAND "$ENV{QT_PATH}\\bin\\windeployqt6.exe"
         $<TARGET_FILE_DIR:network-analyzer-gui>
 )
+
+target_link_libraries(network-analyzer-gui PUBLIC Tracy::TracyClient)

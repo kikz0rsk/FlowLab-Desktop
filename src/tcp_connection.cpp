@@ -10,6 +10,7 @@
 #include <pcapplusplus/PayloadLayer.h>
 #include <pcapplusplus/SSLHandshake.h>
 #include <pcapplusplus/SSLLayer.h>
+#include <tracy/Tracy.hpp>
 
 #include "logger.h"
 #include "packet_utils.h"
@@ -96,6 +97,7 @@ void TcpConnection::sendSynAck() {
 }
 
 void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
+	ZoneScoped;
 	auto tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
 	auto packetSequenceNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->sequenceNumber);
 	auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
@@ -377,6 +379,7 @@ void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 }
 
 std::vector<uint8_t> TcpConnection::read() {
+	ZoneScoped;
 	if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
 		return {};
 	}

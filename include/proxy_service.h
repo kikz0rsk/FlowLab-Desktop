@@ -10,6 +10,7 @@
 #include <botan/x509path.h>
 
 #include <pcapplusplus/PcapFileDevice.h>
+#include <tracy/Tracy.hpp>
 
 #include "client.h"
 #include "connection_manager.h"
@@ -26,11 +27,13 @@ class ProxyService {
 				explicit ServerCallbacks(Client& client) : client(client) {}
 
 				void tls_emit_data(std::span<const uint8_t> data) override {
+					ZoneScoped;
 					Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
 					client.getEncryptedQueueToDevice().insert(client.getEncryptedQueueToDevice().end(), data.begin(), data.end());
 				}
 
 				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
+					ZoneScoped;
 					Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
 					client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
 				}

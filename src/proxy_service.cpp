@@ -9,6 +9,7 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/UdpLayer.h>
+#include "tracy/Tracy.hpp"
 
 #include "logger.h"
 #include "packet_utils.h"
@@ -218,6 +219,7 @@ void ProxyService::acceptClient4() {
 }
 
 void ProxyService::acceptClient6() {
+	ZoneScoped;
 	sockaddr_storage addrStorage{};
 	int addrSize = sizeof(addrStorage);
 	SOCKET clientSocket = accept(this->serverSocket6, (sockaddr *)&addrStorage, &addrSize);
@@ -258,6 +260,7 @@ void ProxyService::acceptClient6() {
 
 void ProxyService::packetLoop() {
 	// setStatusBarMessage("Device connected");
+	ZoneScoped;
 	fd_set readFds;
 	fd_set writeFds;
 	fd_set exceptionFds;
@@ -367,6 +370,7 @@ void ProxyService::packetLoop() {
 }
 
 void ProxyService::readTlsData(std::shared_ptr<Client> client) {
+	ZoneScoped;
 	auto server = client->getTlsConnection();
 	std::array<char, 65535> buffer{};
 	const int bytesRead = SocketUtils::read(client->getClientSocket(), buffer.data(), buffer.size());
@@ -382,6 +386,7 @@ void ProxyService::readTlsData(std::shared_ptr<Client> client) {
 }
 
 bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
+	ZoneScoped;
 	if (client->getUnencryptedQueueFromDevice().empty()) {
 		return false;
 	}

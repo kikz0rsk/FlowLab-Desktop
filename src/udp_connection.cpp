@@ -5,6 +5,7 @@
 #include <pcapplusplus/UdpLayer.h>
 
 #include <utility>
+#include <tracy/Tracy.hpp>
 
 #include "packet_utils.h"
 
@@ -22,6 +23,7 @@ UdpConnection::~UdpConnection() {
 }
 
 void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
+	ZoneScoped;
 	if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
 		openSocket();
 	}
@@ -114,6 +116,7 @@ void UdpConnection::gracefullyCloseRemoteSocket() {
 }
 
 std::vector<uint8_t> UdpConnection::read() {
+	ZoneScoped;
 	std::array<char, 65535> buffer{};
 
 	u_long mode = 1;// Non-blocking mode
