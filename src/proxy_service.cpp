@@ -4,6 +4,7 @@
 #include <ws2ipdef.h>
 #include <winsock2.h>
 #include <iostream>
+#include <ws2tcpip.h>
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/IPv6Layer.h>
 #include <pcapplusplus/SystemUtils.h>
@@ -105,13 +106,6 @@ ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() const {
 }
 
 void ProxyService::threadRoutine() {
-	serverSocket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (serverSocket == INVALID_SOCKET) {
-		std::cerr << "socket() failed: " << WSAGetLastError() << std::endl;
-
-		return;
-	}
-
 	serverSocket6 = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	if (serverSocket6 == INVALID_SOCKET) {
 		std::cerr << "socket() ipv6 failed: " << WSAGetLastError() << std::endl;
@@ -119,16 +113,19 @@ void ProxyService::threadRoutine() {
 		return;
 	}
 
-	auto addr = sockaddr_in{AF_INET, htons(20'000), INADDR_ANY};
-	int res = bind(serverSocket, (SOCKADDR *) &addr, sizeof(sockaddr_in));
-	if (res == SOCKET_ERROR) {
-		std::cerr << "bind() failed: " << WSAGetLastError() << std::endl;
+	sockaddr_in addr{};
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(20'000);
+	addr.sin_addr.s_addr = INADDR_ANY;
 
-		return;
-	}
+	const int opt = 0;
+	setsockopt(serverSocket6, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char *>(&opt), sizeof(opt));
 
-	auto addr6 = ndpi::sockaddr_in6{AF_INET6, htons(20'000), INADDR_ANY};
-	res = bind(serverSocket6, (SOCKADDR *) &addr6, sizeof(ndpi::sockaddr_in6));
+	ndpi::sockaddr_in6 addr6{};
+	addr6.sin6_family = AF_INET6;
+	addr6.sin6_port = htons(20'000);
+	addr6.sin6_addr = ndpi::in6addr_any;
+	int res = bind(serverSocket6, (SOCKADDR *) &addr6, sizeof(addr6));
 	if (res == SOCKET_ERROR) {
 		std::cerr << "bind() ipv6 failed: " << WSAGetLastError() << std::endl;
 
@@ -136,23 +133,9 @@ void ProxyService::threadRoutine() {
 	}
 
 	u_long mode = 1;	// Non-blocking mode
-	res = ioctlsocket(serverSocket, FIONBIO, &mode);
-	if (res == SOCKET_ERROR) {
-		std::cerr << "failed to set socket to non-blocking: " << WSAGetLastError() << std::endl;
-
-		return;
-	}
-
 	res = ioctlsocket(serverSocket6, FIONBIO, &mode);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "failed to set ipv6 socket to non-blocking: " << WSAGetLastError() << std::endl;
-
-		return;
-	}
-
-	res = listen(serverSocket, 1);
-	if (res == SOCKET_ERROR) {
-		std::cerr << "listen() failed: " << WSAGetLastError() << std::endl;
 
 		return;
 	}
@@ -169,7 +152,6 @@ void ProxyService::threadRoutine() {
 	while (!stopFlag.load()) {
 		try {
 			while (!stopFlag.load()) {
-				acceptClient4();
 				acceptClient6();
 				packetLoop();
 			}
@@ -177,45 +159,6 @@ void ProxyService::threadRoutine() {
 
 		// setStatusBarMessage("Device disconnected");
 	}
-}
-
-void ProxyService::acceptClient4() {
-	sockaddr_storage addrStorage{};
-	int addrSize = sizeof(addrStorage);
-	SOCKET clientSocket = accept(this->serverSocket, (sockaddr *)&addrStorage, &addrSize);
-	if (clientSocket == INVALID_SOCKET) {
-		const auto errCode = WSAGetLastError();
-		if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
-			return;
-		}
-		Logger::get().log("accept() failed: " + std::to_string(WSAGetLastError()));
-
-		return;
-	}
-
-	pcpp::IPAddress clientIp;
-	uint16_t port;
-	if (((sockaddr *)&addrStorage)->sa_family == AF_INET) {
-		auto addr = reinterpret_cast<sockaddr_in *>(&addrStorage);
-		clientIp = pcpp::IPAddress(std::string(inet_ntoa(addr->sin_addr)));
-		port = ntohs(addr->sin_port);
-	} else {
-		auto addr = reinterpret_cast<ndpi::sockaddr_in6 *>(&addrStorage);
-		std::array<char, INET6_ADDRSTRLEN> buffer{};
-		ndpi::inet_ntop(AF_INET6, &addr->sin6_addr, buffer.data(), sizeof(buffer));
-		clientIp = pcpp::IPAddress(std::string(buffer.data()));
-		port = ntohs(addr->sin6_port);
-	}
-
-	auto& client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
-	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
-	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>();
-	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
-	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
-	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
-	client->setTlsServer(server);
-	Logger::get().log("Accepted client from " + clientIp.toString());
 }
 
 void ProxyService::acceptClient6() {
