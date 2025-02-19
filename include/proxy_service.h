@@ -119,7 +119,6 @@ class ProxyService {
 		std::set<OnConnectionCallback> onConnectionCallbacks{};
 		std::list<std::shared_ptr<Client>> clients;
 		std::thread thread;
-		SOCKET serverSocket{};
 		SOCKET serverSocket6{};
 		std::atomic_bool stopFlag = false;
 		std::shared_ptr<ConnectionManager> connections;
@@ -147,7 +146,6 @@ class ProxyService {
 
 	protected:
 		void threadRoutine();
-		void acceptClient4();
 		void acceptClient6();
 		void packetLoop();
 		static void readTlsData(std::shared_ptr<Client> client);
