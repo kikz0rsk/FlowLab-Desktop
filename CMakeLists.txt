@@ -18,7 +18,7 @@ include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
 include_directories(lib/include/)
 
-option ( TRACY_ENABLE "" ON )
+option ( TRACY_ENABLE "" OFF )
 option ( TRACY_ON_DEMAND "" ON )
 add_subdirectory ( lib/tracy-0.11.1 )
 

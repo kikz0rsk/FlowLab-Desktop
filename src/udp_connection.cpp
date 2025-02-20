@@ -105,6 +105,7 @@ void UdpConnection::openSocket() {
 }
 
 void UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+	ZoneScoped;
 	sentBytes += data.size();
 	send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 }

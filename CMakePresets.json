@@ -13,6 +13,18 @@
       }
     },
     {
+      "name": "vcpkg-profiling",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-profiling",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QT_PATH}",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
       "name": "vcpkg-release",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build-release",
@@ -20,7 +32,8 @@
         "CMAKE_PREFIX_PATH": "$env{QT_PATH}",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "OFF"
       }
     }
   ]
