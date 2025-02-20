@@ -64,7 +64,7 @@ void ProxyService::start() {
 
 void ProxyService::stop() {
 	stopFlag = true;
-	closesocket(serverSocket);
+	closesocket(serverSocket6);
 	if (thread.joinable()) {
 		thread.join();
 	}
