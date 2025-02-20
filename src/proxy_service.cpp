@@ -113,11 +113,6 @@ void ProxyService::threadRoutine() {
 		return;
 	}
 
-	sockaddr_in addr{};
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(20'000);
-	addr.sin_addr.s_addr = INADDR_ANY;
-
 	const int opt = 0;
 	setsockopt(serverSocket6, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char *>(&opt), sizeof(opt));
 
@@ -152,8 +147,7 @@ void ProxyService::threadRoutine() {
 	while (!stopFlag.load()) {
 		try {
 			while (!stopFlag.load()) {
-				acceptClient6();
-				packetLoop();
+				selectLoop();
 			}
 		} catch (const std::exception &e) {}
 
@@ -201,7 +195,7 @@ void ProxyService::acceptClient6() {
 	Logger::get().log("Accepted client from " + clientIp.toString());
 }
 
-void ProxyService::packetLoop() {
+void ProxyService::selectLoop() {
 	// setStatusBarMessage("Device connected");
 	ZoneScoped;
 	fd_set readFds;
@@ -210,6 +204,8 @@ void ProxyService::packetLoop() {
 	FD_ZERO(&readFds);
 	FD_ZERO(&writeFds);
 	FD_ZERO(&exceptionFds);
+
+	FD_SET(serverSocket6, &readFds);
 	for (const auto& client : clients) {
 		FD_SET(client->getClientSocket(), &readFds);
 		FD_SET(client->getClientSocket(), &writeFds);
@@ -220,30 +216,19 @@ void ProxyService::packetLoop() {
 		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 			continue;
 		}
-		// if (conn.second->getProtocol() == Protocol::UDP && conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
-		// 	continue;
-		// }
-		// if (
-		// 	conn.second->getProtocol() == Protocol::TCP
-		// 	&& conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED
-		// 	&& dynamic_cast<TcpConnection *>(conn.second.get()) != nullptr
-		// 	&& dynamic_cast<TcpConnection *>(conn.second.get())->getTcpStatus() == TcpStatus::CLOSED
-		// ) {
-		// 	continue;
-		// }
+
 		FD_SET(conn.second->getSocket(), &readFds);
 		FD_SET(conn.second->getSocket(), &writeFds);
 		FD_SET(conn.second->getSocket(), &exceptionFds);
 		connectionsInFd.emplace_back(conn.second);
 	}
 
-	const TIMEVAL timeout{0, 10'000};
+	constexpr TIMEVAL timeout{0, 100'000};
 	select(0, &readFds, &writeFds, &exceptionFds, &timeout);
 
-	// if (FD_ISSET(this->clientSocket, &exceptionFds)) {
-	// 	Logger::get().log("Exception on socket: " + std::to_string(WSAGetLastError()));
-	// 	break;
-	// }
+	if (FD_ISSET(serverSocket6, &readFds)) {
+		acceptClient6();
+	}
 
 	for (auto it = this->clients.begin(); it != this->clients.end();) {
 		const auto& client = *it;
