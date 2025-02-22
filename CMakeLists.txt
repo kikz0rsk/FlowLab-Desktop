@@ -163,10 +163,12 @@ endif()
 
 target_compile_options(network-analyzer-gui PRIVATE -Wall -Wextra -Wpedantic)
 
-add_custom_command(
-        TARGET network-analyzer-gui POST_BUILD
-        COMMAND "$ENV{QT_PATH}\\bin\\windeployqt6.exe"
-        $<TARGET_FILE_DIR:network-analyzer-gui>
-)
+if (WIN32)
+    add_custom_command(
+            TARGET network-analyzer-gui POST_BUILD
+            COMMAND "$ENV{QT_PATH}\\bin\\windeployqt6.exe"
+            $<TARGET_FILE_DIR:network-analyzer-gui>
+    )
+endif()
 
 target_link_libraries(network-analyzer-gui PUBLIC Tracy::TracyClient)
