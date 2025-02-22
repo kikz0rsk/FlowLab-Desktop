@@ -10,6 +10,7 @@
 	#include <netdb.h>
 	#include <unistd.h>
 	#include <sys/ioctl.h>
+	#include <cerrno>
 	#define INVALID_SOCKET -1
 	#define SOCKET_ERROR -1
 	#define SD_BOTH SHUT_RDWR
