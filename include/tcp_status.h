@@ -9,7 +9,7 @@ enum class TcpStatus {
 	CLOSE_WAIT
 };
 
-constexpr std::array<std::string, 6> tcpStatusStrings = {
+const std::array<std::string, 6> tcpStatusStrings = {
 	"CLOSED",
 	"SYN_RECEIVED",
 	"ESTABLISHED",
