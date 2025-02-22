@@ -1,5 +1,6 @@
 #include "connection.h"
 
+#include <format>
 #include <utility>
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/IPv6Layer.h>
