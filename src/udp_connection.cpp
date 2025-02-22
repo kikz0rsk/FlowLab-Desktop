@@ -131,12 +131,12 @@ std::vector<uint8_t> UdpConnection::read() {
 	std::array<char, 65535> buffer{};
 
 	u_long mode = 1;// Non-blocking mode
-	ioctlsocket(socket, FIONBIO, &mode);
+	ioctlSocket(socket, FIONBIO, &mode);
 	int length = recv(socket, buffer.data(), buffer.size(), 0);
 	const auto error = getLastSocketError();
 
 	mode = 0;	// Blocking mode
-	ioctlsocket(socket, FIONBIO, &mode);
+	ioctlSocket(socket, FIONBIO, &mode);
 
 	if (length == SOCKET_ERROR) {
 		if (error == WSAEWOULDBLOCK) {

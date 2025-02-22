@@ -9,6 +9,7 @@
 	#include <arpa/inet.h>
 	#include <netdb.h>
 	#include <unistd.h>
+	#include <sys/ioctl.h>
 	#define INVALID_SOCKET -1
 	#define SOCKET_ERROR -1
 	typedef int SOCKET;
@@ -56,3 +57,5 @@ int getLastSocketError();
 
 int initSockets();
 void cleanupSockets();
+int closeSocket(SOCKET socket);
+int ioctlSocket(SOCKET socket, long cmd, u_long *argp);

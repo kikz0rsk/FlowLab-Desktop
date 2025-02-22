@@ -64,7 +64,7 @@ class TcpConnection : public Connection {
 
 		void sendRst();
 
-		[[nodiscard]]  static unsigned long getBytesAvailable(SOCKET socket);
+		// [[nodiscard]]  static unsigned long getBytesAvailable(SOCKET socket);
 
 		[[nodiscard]] TcpStatus getTcpStatus() const;
 

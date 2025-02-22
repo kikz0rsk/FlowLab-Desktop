@@ -320,7 +320,7 @@ void TcpConnection::openSocket() {
 	const bool nodelay = true;
 	setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char *>(&nodelay), sizeof(nodelay));
 	u_long mode = 1;// Non-blocking mode
-	ioctlsocket(socket, FIONBIO, &mode);
+	ioctlSocket(socket, FIONBIO, &mode);
 
 	auto dstIpStr = dstIp.toString();
 
@@ -415,11 +415,11 @@ std::vector<uint8_t> TcpConnection::read() {
 	std::vector<char> buffer(bytesToRead);
 
 	u_long mode = 1;// Non-blocking mode
-	ioctlsocket(socket, FIONBIO, &mode);
+	ioctlSocket(socket, FIONBIO, &mode);
 	const int length = recv(socket, buffer.data(), static_cast<int>(buffer.size()), 0);
 	const int error = getLastSocketError();
 	mode = 0;	// Blocking mode
-	int res = ioctlsocket(socket, FIONBIO, &mode);
+	ioctlSocket(socket, FIONBIO, &mode);
 	// if (res == SOCKET_ERROR) {
 	// 	const auto errCode = getLastSocketError();
 	// 	log("ioctlsocket() failed: " + std::to_string(getLastSocketError()));
@@ -479,7 +479,7 @@ void TcpConnection::writeEvent() {
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 		u_long mode = 0;// Blocking mode
-		ioctlsocket(socket, FIONBIO, &mode);
+		ioctlSocket(socket, FIONBIO, &mode);
 		sendSynAck();
 		ourSequenceNumber += 1;
 	}
@@ -488,7 +488,7 @@ void TcpConnection::writeEvent() {
 void TcpConnection::exceptionEvent() {
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		u_long mode = 0;// Blocking mode
-		ioctlsocket(socket, FIONBIO, &mode);
+		ioctlSocket(socket, FIONBIO, &mode);
 		sendRst();
 		gracefullyCloseRemoteSocket();
 		setTcpStatus(TcpStatus::CLOSED);
@@ -568,12 +568,12 @@ void TcpConnection::sendRst() {
 	sendToDeviceSocket(packet);
 }
 
-unsigned long TcpConnection::getBytesAvailable(SOCKET socket) {
-	unsigned long bytes;
-	ioctlsocket(socket,FIONREAD, &bytes);
-
-	return bytes;
-}
+// unsigned long TcpConnection::getBytesAvailable(SOCKET socket) {
+// 	unsigned long bytes;
+// 	ioctlsocket(socket,FIONREAD, &bytes);
+//
+// 	return bytes;
+// }
 
 TcpStatus TcpConnection::getTcpStatus() const {
 	return tcpStatus.load();

@@ -57,7 +57,7 @@ void ProxyService::start() {
 
 void ProxyService::stop() {
 	stopFlag = true;
-	closesocket(serverSocket6);
+	closeSocket(serverSocket6);
 	if (thread.joinable()) {
 		thread.join();
 	}
@@ -121,7 +121,7 @@ void ProxyService::threadRoutine() {
 	}
 
 	u_long mode = 1;	// Non-blocking mode
-	res = ioctlsocket(serverSocket6, FIONBIO, &mode);
+	res = ioctlSocket(serverSocket6, FIONBIO, &mode);
 	if (res == SOCKET_ERROR) {
 		std::cerr << "failed to set ipv6 socket to non-blocking: " << getLastSocketError() << std::endl;
 

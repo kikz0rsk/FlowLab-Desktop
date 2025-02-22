@@ -22,3 +22,19 @@ void cleanupSockets() {
 	WSACleanup();
 #endif
 }
+
+int closeSocket(SOCKET socket) {
+#ifdef WIN32
+	return closesocket(socket);
+#else
+	return close(socket);
+#endif
+}
+
+int ioctlSocket(SOCKET socket, long cmd, u_long *argp) {
+#ifdef WIN32
+	return ioctlsocket(socket, cmd, argp);
+#else
+	return ioctl(socket, cmd, argp);
+#endif
+}

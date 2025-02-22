@@ -244,7 +244,7 @@ void Connection::setOrderNum(unsigned long long order_num) {
 }
 
 void Connection::closeSocketAndInvalidate() {
-	closesocket(socket);
+	closeSocket(socket);
 	socket = 0;
 }
 
