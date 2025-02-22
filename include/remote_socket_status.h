@@ -6,7 +6,7 @@ enum class RemoteSocketStatus {
 	CLOSED
 };
 
-constexpr std::array<std::string, 3> remoteSocketStatusStrings = {
+const std::array<std::string, 3> remoteSocketStatusStrings = {
 	"INITIATING",
 	"ESTABLISHED",
 	"CLOSED"
