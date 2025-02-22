@@ -16,7 +16,7 @@
 	#define SD_BOTH SHUT_RDWR
 	typedef int SOCKET;
 	typedef const sockaddr SOCKADDR;
-	typedef const timeval TIMEVAL;
+	typedef timeval TIMEVAL;
 
     #define WSAEINTR           EINTR         // Interrupted function call
     #define WSAEBADF           EBADF         // Bad file descriptor
