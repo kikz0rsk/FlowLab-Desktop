@@ -71,7 +71,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// 	packet.getRawPacketReadOnly()->getRawDataLen(),
 	// 	0
 	// );
-	// const auto errCode = WSAGetLastError();
+	// const auto errCode = getLastSocketError();
 	// if (res == SOCKET_ERROR) {
 	// 	log("sendToDeviceSocket send() returned: " + std::to_string(errCode));
 	// }
@@ -80,7 +80,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
 	//
 	// // if (sent != packet.getRawPacketReadOnly()->getRawDataLen()) {
-	// // 	log("sendToDeviceSocket send() failed: " + std::to_string(WSAGetLastError()));
+	// // 	log("sendToDeviceSocket send() failed: " + std::to_string(getLastSocketError()));
 	// // }
 	// if (res == SOCKET_ERROR) {
 	// 	if (errCode == WSAEWOULDBLOCK) {

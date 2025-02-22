@@ -5,6 +5,8 @@
 #include <botan/tls.h>
 #include <botan/certstor_system.h>
 
+#include "sockets.h"
+
 class Forwarder {
 	protected:
 		SOCKET socket;

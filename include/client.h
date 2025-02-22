@@ -5,10 +5,9 @@
 #include <utility>
 #include <vector>
 #include <pcapplusplus/IpAddress.h>
-#include <winsock2.h>
 #include <botan/tls_server.h>
 
-#include "../build-release/vcpkg_installed/x64-mingw-static/include/botan/tls_channel.h"
+#include "sockets.h"
 
 class Client {
 	SOCKET clientSocket;

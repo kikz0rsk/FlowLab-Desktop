@@ -61,7 +61,7 @@ void UdpConnection::openSocket() {
 	}
 
 	if (socket == INVALID_SOCKET) {
-		log("socket() failed: " + std::to_string(WSAGetLastError()));
+		log("socket() failed: " + std::to_string(getLastSocketError()));
 		gracefullyCloseRemoteSocket();
 
 		return;
@@ -69,15 +69,21 @@ void UdpConnection::openSocket() {
 
 	int res;
 	if (isIpv6()) {
-		ndpi::sockaddr_in6 addr{AF_INET6, htons(0), INADDR_ANY};
+		sockaddr_in6 addr{};
+		addr.sin6_family = AF_INET6;
+		addr.sin6_port = htons(0);
+		addr.sin6_addr = in6addr_any;
 		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	} else {
-		sockaddr_in addr{AF_INET, htons(0), INADDR_ANY};
+		sockaddr_in addr{};
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(0);
+		addr.sin_addr.s_addr = INADDR_ANY;
 		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	}
 
 	if (res == SOCKET_ERROR) {
-		log("bind() failed: " + std::to_string(WSAGetLastError()));
+		log("bind() failed: " + std::to_string(getLastSocketError()));
 		gracefullyCloseRemoteSocket();
 
 		return;
@@ -85,17 +91,21 @@ void UdpConnection::openSocket() {
 
 	auto dstIpStr = dstIp.toString();
 	if (isIpv6()) {
-		auto destSockAddr = ndpi::sockaddr_in6{AF_INET6, htons(dstPort)};
+		sockaddr_in6 destSockAddr{};
+		destSockAddr.sin6_family = AF_INET6;
+		destSockAddr.sin6_port = htons(dstPort);
 		inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
 		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	} else {
-		auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
+		sockaddr_in destSockAddr{};
+		destSockAddr.sin_family = AF_INET;
+		destSockAddr.sin_port = htons(dstPort);
 		destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
 		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	}
 
 	if (res == SOCKET_ERROR) {
-		log("connect() failed: " + std::to_string(WSAGetLastError()));
+		log("connect() failed: " + std::to_string(getLastSocketError()));
 		gracefullyCloseRemoteSocket();
 
 		return;
@@ -123,7 +133,7 @@ std::vector<uint8_t> UdpConnection::read() {
 	u_long mode = 1;// Non-blocking mode
 	ioctlsocket(socket, FIONBIO, &mode);
 	int length = recv(socket, buffer.data(), buffer.size(), 0);
-	const auto error = WSAGetLastError();
+	const auto error = getLastSocketError();
 
 	mode = 0;	// Blocking mode
 	ioctlsocket(socket, FIONBIO, &mode);

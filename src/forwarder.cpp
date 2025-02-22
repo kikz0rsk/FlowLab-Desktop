@@ -1,12 +1,8 @@
-#include <winsock2.h>
 #include <memory>
 #include <botan/auto_rng.h>
-#include <botan/certstor.h>
-#include <botan/certstor_system.h>
 #include <botan/tls.h>
 
 #include "forwarder.h"
-
 #include "logger.h"
 
 Forwarder::Forwarder(SOCKET socket) : socket(socket) {}

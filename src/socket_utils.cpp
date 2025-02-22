@@ -40,11 +40,11 @@ int SocketUtils::readExactly(SOCKET socket, char *buffer, int length) {
 			throw EofException();
 		}
 		if (bytesRead == SOCKET_ERROR) {
-			const auto errCode = WSAGetLastError();
+			const auto errCode = getLastSocketError();
 			if (errCode == WSAEWOULDBLOCK) {
 				continue;
 			}
-			throw SocketError(WSAGetLastError());
+			throw SocketError(getLastSocketError());
 		}
 
 		currOffset += bytesRead;
@@ -61,7 +61,7 @@ int SocketUtils::writeExactly(SOCKET socket, const char *buffer, int length) {
 			throw EofException();
 		}
 		if (bytesWritten == SOCKET_ERROR) {
-			const auto errCode = WSAGetLastError();
+			const auto errCode = getLastSocketError();
 			if (errCode == WSAEWOULDBLOCK) {
 				continue;
 			}
@@ -82,7 +82,7 @@ int SocketUtils::writeExactlyThrowBlock(SOCKET socket, const char *buffer, int l
 			throw EofException();
 		}
 		if (bytesWritten == SOCKET_ERROR) {
-			const auto errCode = WSAGetLastError();
+			const auto errCode = getLastSocketError();
 			if (errCode == WSAEWOULDBLOCK) {
 				throw WouldBlockException();
 			}

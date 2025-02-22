@@ -20,7 +20,17 @@ include_directories(lib/include/)
 
 option ( TRACY_ENABLE "" OFF )
 option ( TRACY_ON_DEMAND "" ON )
-add_subdirectory ( lib/tracy-0.11.1 )
+include(FetchContent)
+FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable ( tracy )
+
+#add_subdirectory ( lib/tracy-0.11.1 )
 
 set(PROJECT_SOURCES
         src/main.cpp
@@ -41,6 +51,7 @@ set(PROJECT_SOURCES
         src/udp_connection.cpp
         src/packet_utils.cpp
         src/dns_manager.cpp
+        src/sockets.cpp
 
         mainwindow.ui
         logswindow.ui

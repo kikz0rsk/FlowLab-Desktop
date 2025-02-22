@@ -44,8 +44,8 @@ void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
 			throw std::runtime_error("Connection closed");
 		}
 		if (bytesRead == SOCKET_ERROR) {
-			Logger::get().log("recv() failed: " + std::to_string(WSAGetLastError()));
-			throw std::runtime_error("recv() failed: " + std::to_string(WSAGetLastError()));
+			Logger::get().log("recv() failed: " + std::to_string(getLastSocketError()));
+			throw std::runtime_error("recv() failed: " + std::to_string(getLastSocketError()));
 		}
 		currOffset += bytesRead;
 	}

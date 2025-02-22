@@ -1,10 +1,6 @@
 #include "proxy_service.h"
 
-#include <ws2tcpip.h>
-#include <ws2ipdef.h>
-#include <winsock2.h>
 #include <iostream>
-#include <ws2tcpip.h>
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/IPv6Layer.h>
 #include <pcapplusplus/SystemUtils.h>
@@ -19,12 +15,9 @@
 #include "udp_connection.h"
 
 ProxyService::ProxyService() {
-	WSADATA wsaData;
-
-	int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	int res = initSockets();
 	if (res != 0) {
-		Logger::get().log("WSAStartup failed: " + std::to_string(res));
-		WSACleanup();
+		Logger::get().log("Init sockets failed: " + std::to_string(res));
 
 		exit(-1);
 	}
@@ -43,7 +36,7 @@ ProxyService::ProxyService() {
 
 ProxyService::~ProxyService() {
 	stop();
-	WSACleanup();
+	cleanupSockets();
 	ndpi::ndpi_exit_detection_module(ndpiStruct);
 }
 
@@ -108,7 +101,7 @@ ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() const {
 void ProxyService::threadRoutine() {
 	serverSocket6 = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	if (serverSocket6 == INVALID_SOCKET) {
-		std::cerr << "socket() ipv6 failed: " << WSAGetLastError() << std::endl;
+		std::cerr << "socket() ipv6 failed: " << getLastSocketError() << std::endl;
 
 		return;
 	}
@@ -116,13 +109,13 @@ void ProxyService::threadRoutine() {
 	const int opt = 0;
 	setsockopt(serverSocket6, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char *>(&opt), sizeof(opt));
 
-	ndpi::sockaddr_in6 addr6{};
+	sockaddr_in6 addr6{};
 	addr6.sin6_family = AF_INET6;
 	addr6.sin6_port = htons(20'000);
-	addr6.sin6_addr = ndpi::in6addr_any;
+	addr6.sin6_addr = in6addr_any;
 	int res = bind(serverSocket6, (SOCKADDR *) &addr6, sizeof(addr6));
 	if (res == SOCKET_ERROR) {
-		std::cerr << "bind() ipv6 failed: " << WSAGetLastError() << std::endl;
+		std::cerr << "bind() ipv6 failed: " << getLastSocketError() << std::endl;
 
 		return;
 	}
@@ -130,14 +123,14 @@ void ProxyService::threadRoutine() {
 	u_long mode = 1;	// Non-blocking mode
 	res = ioctlsocket(serverSocket6, FIONBIO, &mode);
 	if (res == SOCKET_ERROR) {
-		std::cerr << "failed to set ipv6 socket to non-blocking: " << WSAGetLastError() << std::endl;
+		std::cerr << "failed to set ipv6 socket to non-blocking: " << getLastSocketError() << std::endl;
 
 		return;
 	}
 
 	res = listen(serverSocket6, 1);
 	if (res == SOCKET_ERROR) {
-		std::cerr << "listen() ipv6 failed: " << WSAGetLastError() << std::endl;
+		std::cerr << "listen() ipv6 failed: " << getLastSocketError() << std::endl;
 
 		return;
 	}
@@ -161,11 +154,11 @@ void ProxyService::acceptClient6() {
 	int addrSize = sizeof(addrStorage);
 	SOCKET clientSocket = accept(this->serverSocket6, (sockaddr *)&addrStorage, &addrSize);
 	if (clientSocket == INVALID_SOCKET) {
-		const auto errCode = WSAGetLastError();
+		const auto errCode = getLastSocketError();
 		if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
 			return;
 		}
-		Logger::get().log("accept() failed: " + std::to_string(WSAGetLastError()));
+		Logger::get().log("accept() failed: " + std::to_string(getLastSocketError()));
 
 		return;
 	}
@@ -177,9 +170,9 @@ void ProxyService::acceptClient6() {
 		clientIp = pcpp::IPAddress(std::string(inet_ntoa(addr->sin_addr)));
 		port = ntohs(addr->sin_port);
 	} else {
-		auto addr = reinterpret_cast<ndpi::sockaddr_in6 *>(&addrStorage);
+		auto addr = reinterpret_cast<sockaddr_in6 *>(&addrStorage);
 		std::array<char, INET6_ADDRSTRLEN> buffer{};
-		ndpi::inet_ntop(AF_INET6, &addr->sin6_addr, buffer.data(), sizeof(buffer));
+		inet_ntop(AF_INET6, &addr->sin6_addr, buffer.data(), sizeof(buffer));
 		clientIp = pcpp::IPAddress(std::string(buffer.data()));
 		port = ntohs(addr->sin6_port);
 	}
@@ -303,7 +296,7 @@ void ProxyService::readTlsData(std::shared_ptr<Client> client) {
 	std::array<char, 65535> buffer{};
 	const int bytesRead = SocketUtils::read(client->getClientSocket(), buffer.data(), buffer.size());
 	if (bytesRead == SOCKET_ERROR) {
-		const int error = WSAGetLastError();
+		const int error = getLastSocketError();
 		if (error == WSAEWOULDBLOCK) {
 			return;
 		}

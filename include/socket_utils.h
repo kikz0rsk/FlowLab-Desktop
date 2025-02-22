@@ -2,7 +2,7 @@
 
 #include <exception>
 #include <string>
-#include <winsock2.h>
+#include "sockets.h"
 
 class SocketUtils {
 	public:

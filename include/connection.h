@@ -7,11 +7,11 @@
 #include <optional>
 #include <shared_mutex>
 #include <pcapplusplus/IpAddress.h>
-#include <winsock2.h>
 #include <pcapplusplus/IPLayer.h>
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
+#include "sockets.h"
 #include "client.h"
 #include "dns_manager.h"
 #include "protocol.h"

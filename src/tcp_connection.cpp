@@ -107,15 +107,19 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		auto dstIpStr = dstIp.toString();
 		int res;
 		if (isIpv6()) {
-			auto destSockAddr = ndpi::sockaddr_in6{AF_INET6, htons(dstPort)};
+			sockaddr_in6 destSockAddr{};
+			destSockAddr.sin6_family = AF_INET6;
+			destSockAddr.sin6_port = htons(dstPort);
 			inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
 			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 		} else {
-			auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
+			sockaddr_in destSockAddr{};
+			destSockAddr.sin_family = AF_INET;
+			destSockAddr.sin_port = htons(dstPort);
 			destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
 			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 		}
-		const auto errCode = WSAGetLastError();
+		const auto errCode = getLastSocketError();
 		if (res == SOCKET_ERROR) {
 			if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
 				log("In progress");
@@ -123,7 +127,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 				log("Connected");
 				writeEvent();
 			} else {
-				log("Connect failed: " + std::to_string(WSAGetLastError()));
+				log("Connect failed: " + std::to_string(getLastSocketError()));
 			}
 		}
 
@@ -283,7 +287,7 @@ void TcpConnection::openSocket() {
 	}
 
 	if (socket == INVALID_SOCKET) {
-		std::cerr << "socket() failed: " << WSAGetLastError() << std::endl;
+		std::cerr << "socket() failed: " << getLastSocketError() << std::endl;
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 
@@ -292,15 +296,21 @@ void TcpConnection::openSocket() {
 
 	int res;
 	if (isIpv6()) {
-		ndpi::sockaddr_in6 addr{AF_INET6, htons(0), INADDR_ANY};
+		sockaddr_in6 addr{};
+		addr.sin6_family = AF_INET6;
+		addr.sin6_port = htons(0);
+		addr.sin6_addr = in6addr_any;
 		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	} else {
-		sockaddr_in addr{AF_INET, htons(0), INADDR_ANY};
+		sockaddr_in addr{};
+		addr.sin_family = AF_INET;
+		addr.sin_port = htons(0);
+		addr.sin_addr.s_addr = INADDR_ANY;
 		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
 	}
 
 	if (res == SOCKET_ERROR) {
-		std::cerr << "bind() failed: " << WSAGetLastError() << std::endl;
+		std::cerr << "bind() failed: " << getLastSocketError() << std::endl;
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 
@@ -315,19 +325,23 @@ void TcpConnection::openSocket() {
 	auto dstIpStr = dstIp.toString();
 
 	if (isIpv6()) {
-		auto destSockAddr = ndpi::sockaddr_in6{AF_INET6, htons(dstPort)};
+		sockaddr_in6 destSockAddr{};
+		destSockAddr.sin6_family = AF_INET6;
+		destSockAddr.sin6_port = htons(dstPort);
 		inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
 		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
 		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	} else {
-		auto destSockAddr = sockaddr_in{AF_INET, htons(dstPort)};
+		sockaddr_in destSockAddr{};
+		destSockAddr.sin_family = AF_INET;
+		destSockAddr.sin_port = htons(dstPort);
 		destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
 		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
 		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
 	}
 
 	if (res == SOCKET_ERROR) {
-		const auto errCode = WSAGetLastError();
+		const auto errCode = getLastSocketError();
 		if (errCode == WSAEWOULDBLOCK) {
 			return;
 		}
@@ -403,12 +417,12 @@ std::vector<uint8_t> TcpConnection::read() {
 	u_long mode = 1;// Non-blocking mode
 	ioctlsocket(socket, FIONBIO, &mode);
 	const int length = recv(socket, buffer.data(), static_cast<int>(buffer.size()), 0);
-	const int error = WSAGetLastError();
+	const int error = getLastSocketError();
 	mode = 0;	// Blocking mode
 	int res = ioctlsocket(socket, FIONBIO, &mode);
 	// if (res == SOCKET_ERROR) {
-	// 	const auto errCode = WSAGetLastError();
-	// 	log("ioctlsocket() failed: " + std::to_string(WSAGetLastError()));
+	// 	const auto errCode = getLastSocketError();
+	// 	log("ioctlsocket() failed: " + std::to_string(getLastSocketError()));
 	// }
 
 	if (length == SOCKET_ERROR) {
