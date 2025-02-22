@@ -109,7 +109,7 @@ endif()
 
 add_library(ndpi STATIC IMPORTED)
 set_target_properties(ndpi PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/lib/libndpi.a)
-target_link_libraries(ndpi INTERFACE wsock32 ws2_32)
+#target_link_libraries(ndpi INTERFACE wsock32 ws2_32)
 
 target_link_libraries(network-analyzer-gui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(network-analyzer-gui PUBLIC Botan::Botan-static)
@@ -118,8 +118,13 @@ target_link_libraries(network-analyzer-gui PUBLIC
         ${CMAKE_SOURCE_DIR}/lib/lib/libPacket++.a
         ${CMAKE_SOURCE_DIR}/lib/lib/libCommon++.a
         ${CMAKE_SOURCE_DIR}/lib/lib/libpcap.a
-        OpenSSL::Crypto OpenSSL::SSL crypt32
+        OpenSSL::Crypto OpenSSL::SSL
 )
+
+if (WIN32)
+    target_link_libraries(network-analyzer-gui PUBLIC wsock32 ws2_32 crypt32)
+endif()
+
 target_link_libraries(network-analyzer-gui PUBLIC ndpi)
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
