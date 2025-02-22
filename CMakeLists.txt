@@ -105,28 +105,34 @@ else()
     endif()
 endif()
 
-#target_compile_options(network-analyzer-gui PUBLIC "/Zc:__cplusplus")
-#target_compile_options(network-analyzer-gui PUBLIC "/permissive-")
-
-add_library(ndpi STATIC IMPORTED)
-set_target_properties(ndpi PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/lib/libndpi.a)
-#target_link_libraries(ndpi INTERFACE wsock32 ws2_32)
+if (WIN32)
+    target_link_directories(network-analyzer-gui PRIVATE ${CMAKE_SOURCE_DIR}/lib/lib-windows/)
+else()
+    target_link_directories(network-analyzer-gui PRIVATE ${CMAKE_SOURCE_DIR}/lib/lib-linux/)
+endif()
 
 target_link_libraries(network-analyzer-gui PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(network-analyzer-gui PUBLIC Botan::Botan-static)
 target_link_libraries(network-analyzer-gui PUBLIC
-        ${CMAKE_SOURCE_DIR}/lib/lib/libPcap++.a
-        ${CMAKE_SOURCE_DIR}/lib/lib/libPacket++.a
-        ${CMAKE_SOURCE_DIR}/lib/lib/libCommon++.a
-        ${CMAKE_SOURCE_DIR}/lib/lib/libpcap.a
+        Pcap++
+        Packet++
+        Common++
+        pcap
         OpenSSL::Crypto OpenSSL::SSL
+        ndpi
 )
 
 if (WIN32)
     target_link_libraries(network-analyzer-gui PUBLIC wsock32 ws2_32 crypt32)
 endif()
 
-target_link_libraries(network-analyzer-gui PUBLIC ndpi)
+#if (WIN32)
+#    add_library(ndpi STATIC IMPORTED)
+#    set_target_properties(ndpi PROPERTIES IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/lib/lib-windows/libndpi.a)
+#    target_link_libraries(network-analyzer-gui PUBLIC ndpi)
+#else()
+#    target_link_libraries(network-analyzer-gui PUBLIC ndpi)
+#endif()
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

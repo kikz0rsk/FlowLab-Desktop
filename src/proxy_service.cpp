@@ -216,7 +216,7 @@ void ProxyService::selectLoop() {
 		connectionsInFd.emplace_back(conn.second);
 	}
 
-	constexpr TIMEVAL timeout{0, 100'000};
+	TIMEVAL timeout{0, 100'000};
 	select(0, &readFds, &writeFds, &exceptionFds, &timeout);
 
 	if (FD_ISSET(serverSocket6, &readFds)) {
