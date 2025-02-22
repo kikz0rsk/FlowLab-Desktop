@@ -151,7 +151,7 @@ void ProxyService::threadRoutine() {
 void ProxyService::acceptClient6() {
 	ZoneScoped;
 	sockaddr_storage addrStorage{};
-	int addrSize = sizeof(addrStorage);
+	socklen_t addrSize = sizeof(addrStorage);
 	SOCKET clientSocket = accept(this->serverSocket6, (sockaddr *)&addrStorage, &addrSize);
 	if (clientSocket == INVALID_SOCKET) {
 		const auto errCode = getLastSocketError();
