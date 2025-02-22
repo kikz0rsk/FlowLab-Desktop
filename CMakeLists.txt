@@ -17,6 +17,7 @@ find_package(botan CONFIG REQUIRED)
 include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
 include_directories(lib/include/)
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR})
 
 option ( TRACY_ENABLE "" OFF )
 option ( TRACY_ON_DEMAND "" ON )
