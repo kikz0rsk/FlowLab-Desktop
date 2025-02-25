@@ -48,6 +48,10 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
+	if (!this->client->getTlsConnection()->is_active()) {
+		return;
+	}
+
 	try {
 		this->client->getTlsConnection()->send(
 			std::span(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen())

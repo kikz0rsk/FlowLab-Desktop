@@ -54,6 +54,7 @@ void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 }
 
 void UdpConnection::openSocket() {
+	ZoneScoped;
 	if (isIpv6()) {
 		socket = ::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 	} else {
@@ -121,6 +122,12 @@ void UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 }
 
 void UdpConnection::gracefullyCloseRemoteSocket() {
+	ZoneScoped;
+
+	if (remoteSocketStatus == RemoteSocketStatus::CLOSED) {
+		return;
+	}
+
 	shutdown(socket, SD_BOTH);
 	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
@@ -157,6 +164,7 @@ std::vector<uint8_t> UdpConnection::read() {
 	}
 
 	{
+		ZoneScopedN("dataStreamWrite");
 		auto writeLock = getWriteLock();
 		// dataStream.reserve(dataStream.size() + length);
 		if (dataStream.size() < 1'000'000) {
@@ -186,6 +194,7 @@ std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std
 }
 
 void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
+	ZoneScoped;
 	size_t offset = 0;
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + DEFAULT_MAX_SEGMENT_SIZE, data.size()) - offset;

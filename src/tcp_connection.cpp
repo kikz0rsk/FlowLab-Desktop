@@ -45,6 +45,12 @@ void TcpConnection::resetState() {
 }
 
 void TcpConnection::gracefullyCloseRemoteSocket() {
+	ZoneScoped;
+
+	if (this->remoteSocketStatus == RemoteSocketStatus::CLOSED) {
+		return;
+	}
+
 	shutdown(socket, SD_BOTH);
 	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
@@ -212,6 +218,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (dataSize > 0) {
 		const auto dataPtr = tcpLayer->getLayerPayload();
 		{
+			ZoneScopedN("dataStreamWrite");
 			auto writeLock = getWriteLock();
 			// dataStream.reserve(dataStream.size() + dataSize);
 			if (dataStream.size() < 1'000'000) {
@@ -276,6 +283,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 }
 
 void TcpConnection::openSocket() {
+	ZoneScoped;
 	if (remoteSocketStatus == RemoteSocketStatus::ESTABLISHED) {
 		gracefullyCloseRemoteSocket();
 	}
@@ -385,6 +393,7 @@ void TcpConnection::sendAck() {
 }
 
 void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+	ZoneScoped;
 	sentBytes += data.size();
 	int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 	if (res != SOCKET_ERROR && res != data.size()) {
@@ -517,6 +526,7 @@ std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std
 }
 
 void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
+	ZoneScoped;
 	size_t offset = 0;
 	unsigned int maxSegmentSize = this->maxSegmentSize < DEFAULT_MAX_SEGMENT_SIZE ? this->maxSegmentSize : DEFAULT_MAX_SEGMENT_SIZE;
 	while (offset < data.size()) {

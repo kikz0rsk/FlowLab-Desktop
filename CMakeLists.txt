@@ -19,17 +19,17 @@ include_directories(include/)
 include_directories(lib/include/)
 set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR})
 
-option ( TRACY_ENABLE "" OFF )
-option ( TRACY_ON_DEMAND "" ON )
+option (TRACY_ENABLE "" OFF)
+option (TRACY_ON_DEMAND "" ON)
 include(FetchContent)
 FetchContent_Declare(
         tracy
         GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-        GIT_TAG master
+        GIT_TAG v0.11.1
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
 )
-FetchContent_MakeAvailable ( tracy )
+FetchContent_MakeAvailable(tracy)
 
 #add_subdirectory ( lib/tracy-0.11.1 )
 
