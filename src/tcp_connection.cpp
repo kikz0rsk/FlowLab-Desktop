@@ -11,6 +11,7 @@
 #include <pcapplusplus/SSLHandshake.h>
 #include <pcapplusplus/SSLLayer.h>
 #include <tracy/Tracy.hpp>
+#include <utility>
 
 #include "logger.h"
 #include "packet_utils.h"
@@ -23,7 +24,7 @@ TcpConnection::TcpConnection(
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) :
-	Connection(client, src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct) {}
+	Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct) {}
 
 TcpConnection::~TcpConnection() {
 	TcpConnection::gracefullyCloseRemoteSocket();

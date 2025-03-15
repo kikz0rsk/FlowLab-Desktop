@@ -5,6 +5,8 @@
 #include "client.h"
 #include "connection.h"
 #include "tcp_status.h"
+#include "client_forwarder.h"
+#include "server_forwarder.h"
 
 class TcpConnection : public Connection {
 	protected:
@@ -18,7 +20,6 @@ class TcpConnection : public Connection {
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
 		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
-		std::shared_ptr<Forwarder> forwarder;
 
 	public:
 		TcpConnection(

@@ -61,7 +61,6 @@ class TlsForwarder : public Forwarder {
 			public:
 				explicit ClientCredentials(TlsForwarder& forwarder) : forwarder(forwarder) {}
 
-			public:
 				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
 					const std::string& type,
 					const std::string& context
