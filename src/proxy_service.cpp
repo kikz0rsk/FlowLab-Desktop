@@ -14,6 +14,8 @@
 #include "tcp_connection.h"
 #include "udp_connection.h"
 
+std::shared_ptr<Botan::Private_Key> ProxyService::tlsProxyKey {};
+
 ProxyService::ProxyService() {
 	int res = initSockets();
 	if (res != 0) {
@@ -41,6 +43,8 @@ ProxyService::~ProxyService() {
 }
 
 void ProxyService::start() {
+	Botan::AutoSeeded_RNG rng{};
+	tlsProxyKey = Botan::create_private_key("RSA", rng, "2048");
 	stopFlag = false;
 	pcapWriter = std::make_shared<pcpp::PcapNgFileWriterDevice>("output.pcapng");
 	if (!pcapWriter->open()){

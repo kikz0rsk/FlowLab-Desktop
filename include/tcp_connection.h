@@ -89,5 +89,6 @@ class TcpConnection : public Connection {
 		void onTlsServerDataToSend(std::span<const uint8_t> data);
 		void onTlsServerAlert(Botan::TLS::Alert alert);
 
-		void initTlsProxy();
+		void initTlsClient();
+		void initTlsServer();
 };

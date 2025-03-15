@@ -374,7 +374,7 @@ void TcpConnection::openSocket() {
 				setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 				sendSynAck();
 				if (doTlsRelay) {
-					initTlsProxy();
+					initTlsClient();
 				}
 				ourSequenceNumber += 1;
 			}
@@ -517,7 +517,7 @@ void TcpConnection::writeEvent() {
 		sendSynAck();
 		ourSequenceNumber += 1;
 		if (doTlsRelay) {
-			initTlsProxy();
+			initTlsClient();
 		}
 	}
 }
@@ -670,11 +670,16 @@ void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 
 void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cert) {
 	Logger::get().log("Received certificate: " + cert.to_string());
+	this->initTlsServer();
 	this->serverTlsForwarder->setCertificate(cert);
 	this->hasCertificate = true;
+	if (!this->tlsBuffer.empty()) {
+		std::vector data(tlsBuffer.begin(), tlsBuffer.end());
+		this->serverTlsForwarder->getServer()->received_data(data);
+	}
 }
 
-void TcpConnection::initTlsProxy() {
+void TcpConnection::initTlsClient() {
 	this->clientTlsForwarder = std::make_shared<ClientForwarder>(
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
 			this->onTlsClientDataReceived(std::move(data));
@@ -689,7 +694,9 @@ void TcpConnection::initTlsProxy() {
 			this->onTlsClientGotCertificate(cert);
 		}
 	);
+}
 
+void TcpConnection::initTlsServer() {
 	this->serverTlsForwarder = std::make_shared<ServerForwarder>(
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
 			this->onTlsServerDataReceived(std::move(data));

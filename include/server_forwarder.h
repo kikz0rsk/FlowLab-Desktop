@@ -9,6 +9,7 @@
 #include <botan/pk_algs.h>
 #include <botan/x509_ca.h>
 #include <botan/x509_ext.h>
+#include <proxy_service.h>
 
 #include "logger.h"
 
@@ -92,7 +93,7 @@ class ServerForwarder {
 				this->tlsAlertCallback
 			);
 			this->creds = creds;
-			auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
+			server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
 			caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
 			Botan::DataSource_Stream in(R"(flowlab_ca.pkcs8)");
 			caKey = Botan::PKCS8::load_key(in);
@@ -126,25 +127,28 @@ class ServerForwarder {
 				}
 		};
 
-
-
 		void setCertificate(const Botan::X509_Certificate& cert) {
 			this->originalCert = cert;
 
 			Botan::AutoSeeded_RNG rng{};
-			Logger::get().log("Generating new key pair");
-			this->generatedKey = Botan::create_private_key("RSA", rng, "2048");
-			Logger::get().log("Generating new certificate");
-			std::ostringstream oss;
-			oss << cert.subject_info("X520.CommonName").at(0) << "/"
-					<< cert.subject_info("X520.Country").at(0) << "/"
-					<< cert.subject_info("X520.Organization").at(0) << "/"
-					<< "";
-			Botan::X509_Cert_Options options(oss.str());
+			this->generatedKey = ProxyService::tlsProxyKey;
+			Botan::X509_Cert_Options options{};
 			options.start = cert.not_before();
 			options.end = cert.not_after();
-			options.serial_number = cert.subject_info("X509.Certificate.serial")[0];
+			if (cert.subject_info("X520.CommonName").size() > 0) {
+				options.common_name = cert.subject_info("X520.CommonName").at(0);
+			}
+			if (cert.subject_info("X520.Country").size() > 0) {
+				options.country = cert.subject_info("X520.Country").at(0);
+			}
+			if (cert.subject_info("X520.Organization").size() > 0) {
+				options.organization = cert.subject_info("X520.Organization").at(0);
+			}
+			if (cert.subject_info("X509.Certificate.serial").size() > 0) {
+				options.serial_number = cert.subject_info("X509.Certificate.serial").at(0);
+			}
 			options.is_CA = false;
+			options.constraints = cert.constraints();
 
 			auto alternateSubjectNames = std::make_unique<Botan::Cert_Extension::Subject_Alternative_Name>();
 			auto origSubjectAlternateNames = cert.v3_extensions().get(Botan::OID("2.5.29.17"));
@@ -156,6 +160,10 @@ class ServerForwarder {
 
 			Botan::X509_CA ca(caCert, *caKey, "SHA-256", rng);
 			this->generatedCert = ca.sign_request(certReq, rng, cert.not_before(), cert.not_after());
+			Logger::get().log("Generated cert: " + this->generatedCert.to_string());
+			this->creds->caCert = std::make_shared<Botan::X509_Certificate>(caCert);
+			this->creds->generatedCert = std::make_shared<Botan::X509_Certificate>(this->generatedCert);
+			this->creds->generatedKey = this->generatedKey;
 		}
 
 		[[nodiscard]] std::shared_ptr<Botan::TLS::Server>& getServer() {

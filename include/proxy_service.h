@@ -16,6 +16,7 @@
 #include "connection_manager.h"
 #include "logger.h"
 
+
 class ProxyService {
 	public:
 		using OnConnectionCallback = std::shared_ptr<std::function<void (bool, std::shared_ptr<Connection>)>>;
@@ -114,6 +115,8 @@ class ProxyService {
 					return serverKey;
 				}
 		};
+
+		static std::shared_ptr<Botan::Private_Key> tlsProxyKey;
 
 	protected:
 		std::list<std::shared_ptr<Client>> clients;
