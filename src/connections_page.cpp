@@ -115,6 +115,7 @@ void ConnectionsPage::removeConnection(std::shared_ptr<Connection> connection) {
 		auto conn = index.data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
 		if (conn == connection) {
 			model.removeRow(i);
+
 			return;
 		}
 	}

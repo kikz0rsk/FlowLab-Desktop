@@ -178,7 +178,7 @@ std::vector<uint8_t> UdpConnection::read() {
 }
 
 std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
-	pcpp::Layer* ipLayer = buildIpLayer().release();
+	pcpp::Layer *ipLayer = buildIpLayer().release();
 
 	auto udpLayer = new pcpp::UdpLayer(dstPort, srcPort);
 	auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
@@ -209,7 +209,8 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 
 		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
-				pcpp::RawPacket rawPacket(packet->getRawPacket()->getRawData(), packet->getRawPacket()->getRawDataLen(), timeval{}, false, isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
+				pcpp::RawPacket rawPacket(packet->getRawPacket()->getRawData(), packet->getRawPacket()->getRawDataLen(), timeval{}, false,
+					isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
 				pcpp::Packet p(&rawPacket);
 				if (const auto dnsLayer = p.getLayerOfType<pcpp::DnsLayer>(); dnsLayer) {
 					dnsManager->processDns(*dnsLayer);

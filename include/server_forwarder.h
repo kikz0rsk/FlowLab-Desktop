@@ -5,111 +5,160 @@
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
 #include <botan/x509path.h>
+#include <botan/x509self.h>
+#include <botan/pk_algs.h>
+#include <botan/x509_ca.h>
+#include <botan/x509_ext.h>
 
 #include "logger.h"
 
-class ServerForwarder {
-	protected:
-		std::shared_ptr<Botan::TLS::Server> server;
+class ServerForwarderCredentials : public Botan::Credentials_Manager {
+	public:
+		std::shared_ptr<Botan::Private_Key> generatedKey;
+		std::shared_ptr<Botan::X509_Certificate> generatedCert;
+		std::shared_ptr<Botan::X509_Certificate> caCert;
 
 	public:
-		ServerForwarder() {
-			std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
-			std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-			std::shared_ptr<ServerForwarderCredentials> creds = std::make_shared<ServerForwarderCredentials>();
-			std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
-			std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerForwarderCallbacks>();
+		ServerForwarderCredentials(
+			// std::shared_ptr<Botan::Private_Key> generatedKey,
+			// std::shared_ptr<Botan::X509_Certificate> generatedCert,
+			// std::shared_ptr<Botan::X509_Certificate> caCert
+		) {
+			// this->generatedKey = std::move(generatedKey);
+			// this->generatedCert = std::move(generatedCert);
+			// this->caCert = std::move(caCert);
+		}
+
+		std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
+			const std::string& type,
+			const std::string& context
+		) override {
+			return {};
+		}
+
+		std::vector<Botan::X509_Certificate> cert_chain(
+			const std::vector<std::string>& cert_key_types,
+			const std::vector<Botan::AlgorithmIdentifier>& cert_signature_schemes,
+			const std::string& type,
+			const std::string& context
+		) override {
+			// use generated certificate and key
+			return {*generatedCert, *caCert};
+		}
+
+		std::shared_ptr<Botan::Private_Key> private_key_for(
+			const Botan::X509_Certificate& cert,
+			const std::string& type,
+			const std::string& context
+		) override {
+			return this->generatedKey;
+		}
+};
+
+class ServerForwarder {
+	public:
+		using DataReceivedCallback = std::function<void (uint64_t seq_no, std::span<const uint8_t> data)>;
+		using DataReadyCallback = std::function<void (std::span<const uint8_t> data)>;
+		using TlsAlertCallback = std::function<void (Botan::TLS::Alert alert)>;
+
+	protected:
+		std::shared_ptr<Botan::TLS::Server> server;
+		DataReceivedCallback dataReceivedCallback;
+		DataReadyCallback dataReadyCallback;
+		TlsAlertCallback tlsAlertCallback;
+		Botan::X509_Certificate generatedCert;
+		Botan::X509_Certificate originalCert;
+		std::shared_ptr<Botan::Private_Key> generatedKey;
+		Botan::X509_Certificate caCert;
+		std::shared_ptr<Botan::Private_Key> caKey;
+		std::shared_ptr<ServerForwarderCredentials> creds;
+
+	public:
+		ServerForwarder(
+			DataReceivedCallback dataReceivedCallback,
+			DataReadyCallback dataReadyCallback,
+			TlsAlertCallback tlsAlertCallback
+		) :
+			dataReceivedCallback(std::move(dataReceivedCallback)),
+			dataReadyCallback(std::move(dataReadyCallback)),
+			tlsAlertCallback(std::move(tlsAlertCallback)) {
+			auto rng = std::make_shared<Botan::AutoSeeded_RNG>();
+			auto session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
+			auto creds = std::make_shared<ServerForwarderCredentials>();
+			auto policy = std::make_shared<Botan::TLS::Strict_Policy>();
+			std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerForwarderCallbacks>(
+				this->dataReceivedCallback,
+				this->dataReadyCallback,
+				this->tlsAlertCallback
+			);
+			this->creds = creds;
 			auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
+			caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
+			Botan::DataSource_Stream in(R"(flowlab_ca.pkcs8)");
+			caKey = Botan::PKCS8::load_key(in);
 		}
 
 		class ServerForwarderCallbacks : public Botan::TLS::Callbacks {
+			protected:
+				DataReceivedCallback dataReceivedCallback;
+				DataReadyCallback dataReadyCallback;
+				TlsAlertCallback tlsAlertCallback;
+
 			public:
-				explicit ServerForwarderCallbacks() = default;
+				explicit ServerForwarderCallbacks(
+					DataReceivedCallback dataReceivedCallback,
+					DataReadyCallback dataReadyCallback,
+					TlsAlertCallback tlsAlertCallback
+				) : dataReceivedCallback(std::move(dataReceivedCallback)),
+						dataReadyCallback(std::move(dataReadyCallback)),
+						tlsAlertCallback(std::move(tlsAlertCallback)) {}
 
 				void tls_emit_data(std::span<const uint8_t> data) override {
-
+					this->dataReadyCallback(data);
 				}
 
 				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
-
+					this->dataReceivedCallback(seq_no, data);
 				}
 
 				void tls_alert(Botan::TLS::Alert alert) override {
-					Logger::get().log("TLS alert: " + alert.type_string());
-				}
-
-				void tls_verify_cert_chain(
-					const std::vector<Botan::X509_Certificate> &cert_chain,
-					const std::vector<std::optional<Botan::OCSP::Response>> &ocsp_responses,
-					const std::vector<Botan::Certificate_Store *> &trusted_roots,
-					Botan::Usage_Type usage,
-					std::string_view hostname,
-					const Botan::TLS::Policy &policy
-				) override {
-					if(cert_chain.empty()) {
-						throw Botan::Invalid_Argument("Certificate chain was empty");
-					}
-
-					Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
-
-					Botan::Path_Validation_Result result = x509_path_validate(
-						cert_chain,
-						restrictions,
-						trusted_roots,
-						hostname,
-						usage,
-						tls_current_timestamp(),
-						tls_verify_cert_chain_ocsp_timeout(),
-						ocsp_responses
-					);
-
-					if(!result.successful_validation()) {
-						Logger::get().log("Certificate validation failure: " + result.result_string());
-						throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
-					}
+					this->tlsAlertCallback(alert);
 				}
 		};
 
-		class ServerForwarderCredentials : public Botan::Credentials_Manager {
-			public:
-				Botan::X509_Certificate serverCert;
 
-			protected:
-				Botan::Certificate_Store_In_Memory caCertStore;
-				Botan::X509_Certificate caCert;
-				std::shared_ptr<Botan::Private_Key> serverKey;
 
-			public:
-				ServerForwarderCredentials() {
-					serverCert = Botan::X509_Certificate(R"(flowlab_server_flowlab_ca.cer)");
-					caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
-					Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");
-					serverKey.reset(Botan::PKCS8::load_key(in).release());
-					caCertStore.add_certificate(caCert);
-				}
+		void setCertificate(const Botan::X509_Certificate& cert) {
+			this->originalCert = cert;
 
-				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
-					const std::string& type,
-					const std::string& context
-				) override {
-					return {&caCertStore};
-				}
+			Botan::AutoSeeded_RNG rng{};
+			Logger::get().log("Generating new key pair");
+			this->generatedKey = Botan::create_private_key("RSA", rng, "2048");
+			Logger::get().log("Generating new certificate");
+			std::ostringstream oss;
+			oss << cert.subject_info("X520.CommonName").at(0) << "/"
+					<< cert.subject_info("X520.Country").at(0) << "/"
+					<< cert.subject_info("X520.Organization").at(0) << "/"
+					<< "";
+			Botan::X509_Cert_Options options(oss.str());
+			options.start = cert.not_before();
+			options.end = cert.not_after();
+			options.serial_number = cert.subject_info("X509.Certificate.serial")[0];
+			options.is_CA = false;
 
-				std::vector<Botan::X509_Certificate> cert_chain(
-					const std::vector<std::string>& cert_key_types,
-					const std::vector<Botan::AlgorithmIdentifier>& cert_signature_schemes,
-					const std::string& type,
-					const std::string& context
-				) override {
-					return {serverCert, caCert};
-				}
+			auto alternateSubjectNames = std::make_unique<Botan::Cert_Extension::Subject_Alternative_Name>();
+			auto origSubjectAlternateNames = cert.v3_extensions().get(Botan::OID("2.5.29.17"));
+			if (origSubjectAlternateNames) {
+				options.extensions.add(origSubjectAlternateNames->copy());
+			}
 
-				std::shared_ptr<Botan::Private_Key> private_key_for(
-					const Botan::X509_Certificate& cert,
-					const std::string& type,
-					const std::string& context
-				) override {
-					return serverKey;
-				}
-		};
+			auto certReq = Botan::X509::create_cert_req(options, *this->generatedKey, "SHA-256", rng);
+
+			Botan::X509_CA ca(caCert, *caKey, "SHA-256", rng);
+			this->generatedCert = ca.sign_request(certReq, rng, cert.not_before(), cert.not_after());
+		}
+
+		[[nodiscard]] std::shared_ptr<Botan::TLS::Server>& getServer() {
+			return server;
+		}
 };

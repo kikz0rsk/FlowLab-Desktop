@@ -22,6 +22,9 @@ class TcpConnection : public Connection {
 		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
 		std::shared_ptr<ServerForwarder> serverTlsForwarder{};
 		std::shared_ptr<ClientForwarder> clientTlsForwarder{};
+		bool hasCertificate = false;
+		bool doTlsRelay = false;
+		std::deque<uint8_t> tlsBuffer{};
 
 	public:
 		TcpConnection(
@@ -77,11 +80,14 @@ class TcpConnection : public Connection {
 
 		[[nodiscard]] bool canRemove() const override;
 
+		void onTlsClientDataToSend(std::span<const uint8_t> data);
 		void onTlsClientDataReceived(std::span<const uint8_t> data);
-		void onTlsClientRecordReady(std::span<const uint8_t> data);
-		void onTlsClientAlert(std::span<const uint8_t> data);
+		void onTlsClientAlert(Botan::TLS::Alert alert);
+		void onTlsClientGotCertificate(const Botan::X509_Certificate &cert);
 
 		void onTlsServerDataReceived(std::span<const uint8_t> data);
-		void onTlsServerRecordReady(std::span<const uint8_t> data);
-		void onTlsServerAlert(std::span<const uint8_t> data);
+		void onTlsServerDataToSend(std::span<const uint8_t> data);
+		void onTlsServerAlert(Botan::TLS::Alert alert);
+
+		void initTlsProxy();
 };

@@ -1,6 +1,6 @@
 #include "syntax_highlighter.h"
 
-FlowlabSyntaxHighlighter::FlowlabSyntaxHighlighter(QObject *parent): QSyntaxHighlighter(parent) {
+FlowlabSyntaxHighlighter::FlowlabSyntaxHighlighter(QObject *parent) : QSyntaxHighlighter(parent) {
 	keywords.emplace_back (
 		"[ -~]{2,}",
 		QRegularExpression::PatternOption::CaseInsensitiveOption

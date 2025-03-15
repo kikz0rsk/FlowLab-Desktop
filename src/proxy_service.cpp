@@ -290,7 +290,7 @@ void ProxyService::readTlsData(std::shared_ptr<Client> client) {
 		throw SocketUtils::SocketError(error);
 	}
 	Logger::get().log("Received " + std::to_string(bytesRead) + " TLS bytes from client");
-	server->received_data(std::span(reinterpret_cast<uint8_t*>(buffer.data()), bytesRead));
+	server->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), bytesRead));
 }
 
 bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
@@ -343,7 +343,7 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	pcpp::IPAddress dstIp;
 
 	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
-	pcpp::Layer* networkLayer;
+	pcpp::Layer *networkLayer;
 	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer()); ipv4Layer != nullptr) {
 		srcIp = ipv4Layer->getSrcIPAddress();
 		dstIp = ipv4Layer->getDstIPAddress();

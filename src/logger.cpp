@@ -4,11 +4,11 @@
 
 Logger::~Logger() = default;
 
-Logger::Logger() {
-}
+Logger::Logger() {}
 
 Logger & Logger::get() {
 	static Logger logger{};
+
 	return logger;
 }
 

@@ -36,13 +36,15 @@ TlsForwarder::TlsForwarder(SOCKET socket) : Forwarder(socket) {
 	auto creds = std::make_shared<ClientCredentials>(*this);
 	auto policy = std::make_shared<Botan::TLS::Strict_Policy>();
 
-	client = std::make_shared<Botan::TLS::Client>(callbacks,
-							  session_mgr,
-							  creds,
-							  policy,
-							  rng,
-							  Botan::TLS::Server_Information("", 443),
-							  Botan::TLS::Protocol_Version::TLS_V12);
+	client = std::make_shared<Botan::TLS::Client>(
+		callbacks,
+		session_mgr,
+		creds,
+		policy,
+		rng,
+		Botan::TLS::Server_Information("", 443),
+		Botan::TLS::Protocol_Version::TLS_V12
+	);
 	Logger::get().log("TLS forwarder created");
 }
 
