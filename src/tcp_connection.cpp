@@ -41,6 +41,8 @@ void TcpConnection::resetState() {
 	windowSizeMultiplier = 1;
 	maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
 	shouldSendFinOnAckedEverything = false;
+	clientTlsForwarder.reset();
+	serverTlsForwarder.reset();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
 }
@@ -326,7 +328,7 @@ void TcpConnection::openSocket() {
 		return;
 	}
 
-	const bool nodelay = true;
+	constexpr bool nodelay = true;
 	setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char *>(&nodelay), sizeof(nodelay));
 	u_long mode = 1;// Non-blocking mode
 	ioctlSocket(socket, FIONBIO, &mode);
@@ -611,3 +613,26 @@ void TcpConnection::forcefullyCloseAll() {
 bool TcpConnection::canRemove() const {
 	return tcpStatus == TcpStatus::CLOSED && remoteSocketStatus == RemoteSocketStatus::CLOSED;
 }
+
+void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
+	// send to tls server
+}
+
+void TcpConnection::onTlsClientRecordReady(std::span<const uint8_t> data) {
+	// send to remote socket
+}
+
+void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
+	// send to tls client
+}
+
+void TcpConnection::onTlsServerRecordReady(std::span<const uint8_t> data) {
+	// send to device
+}
+
+void TcpConnection::onTlsServerAlert(std::span<const uint8_t> data) {
+}
+
+void TcpConnection::onTlsClientAlert(std::span<const uint8_t> data) {
+}
+

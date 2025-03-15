@@ -20,6 +20,8 @@ class TcpConnection : public Connection {
 		unsigned int windowSizeMultiplier = 1;
 		bool shouldSendFinOnAckedEverything = false;
 		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
+		std::shared_ptr<ServerForwarder> serverTlsForwarder{};
+		std::shared_ptr<ClientForwarder> clientTlsForwarder{};
 
 	public:
 		TcpConnection(
@@ -74,4 +76,12 @@ class TcpConnection : public Connection {
 		void forcefullyCloseAll() override;
 
 		[[nodiscard]] bool canRemove() const override;
+
+		void onTlsClientDataReceived(std::span<const uint8_t> data);
+		void onTlsClientRecordReady(std::span<const uint8_t> data);
+		void onTlsClientAlert(std::span<const uint8_t> data);
+
+		void onTlsServerDataReceived(std::span<const uint8_t> data);
+		void onTlsServerRecordReady(std::span<const uint8_t> data);
+		void onTlsServerAlert(std::span<const uint8_t> data);
 };
