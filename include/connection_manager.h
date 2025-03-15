@@ -6,10 +6,14 @@
 #include "connection.h"
 
 class ConnectionManager {
+	public:
+		using OnConnectionCallback = std::shared_ptr<std::function<void (bool, std::shared_ptr<Connection>)>>;
+
 	protected:
 		unsigned long long orderNum = 0;
 		int maxConnections = 1000;
 		std::unordered_map<std::string, std::shared_ptr<Connection>> connections;
+		std::set<OnConnectionCallback> onConnectionCallbacks{};
 
 	public:
 		void addConnection(const std::shared_ptr<Connection>& connection);
@@ -25,6 +29,9 @@ class ConnectionManager {
 
 		[[nodiscard]] std::unordered_map<std::string, std::shared_ptr<Connection>>& getConnections();
 
+		void registerConnectionCallback(const OnConnectionCallback &callback);
+		void unregisterConnectionCallback(OnConnectionCallback callback);
+
 	protected:
 		static std::string getKey(
 			const pcpp::IPAddress &clientIp,
@@ -34,4 +41,6 @@ class ConnectionManager {
 			uint16_t dstPort,
 			Protocol protocol
 		);
+
+		void cleanUp();
 };

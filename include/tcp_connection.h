@@ -72,4 +72,6 @@ class TcpConnection : public Connection {
 		void setTcpStatus(TcpStatus tcpStatus);
 
 		void forcefullyCloseAll() override;
+
+		[[nodiscard]] bool canRemove() const override;
 };

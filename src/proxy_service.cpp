@@ -69,20 +69,7 @@ void ProxyService::stop() {
 	}
 }
 
-void ProxyService::registerConnectionCallback(const OnConnectionCallback &callback) {
-	onConnectionCallbacks.emplace(callback);
-}
-
-void ProxyService::unregisterConnectionCallback(OnConnectionCallback callback) {
-	for (auto it = onConnectionCallbacks.begin(); it != onConnectionCallbacks.end(); ++it) {
-		if (*it == callback) {
-			onConnectionCallbacks.erase(it);
-			break;
-		}
-	}
-}
-
-std::shared_ptr<ConnectionManager> ProxyService::getConnections() const {
+std::shared_ptr<ConnectionManager> ProxyService::getConnectionManager() const {
 	return connections;
 }
 
@@ -476,12 +463,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		connection->setDnsManager(dnsManager);
 		connections->addConnection(connection);
 		newConnection = true;
-	}
-
-	if (newConnection) {
-		for (const auto& callback : onConnectionCallbacks) {
-			callback->operator()(true, connection);
-		}
 	}
 
 	connection->processPacketFromDevice(networkLayer);

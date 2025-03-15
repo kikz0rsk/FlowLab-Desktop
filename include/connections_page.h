@@ -22,6 +22,7 @@ class ConnectionsPage : public QWidget
 
 		void listView_activated(const QModelIndex &index);
 		void addConnection(std::shared_ptr<Connection> connection);
+		void removeConnection(std::shared_ptr<Connection> connection);
 
 	protected slots:
 		void utf8Button_clicked();

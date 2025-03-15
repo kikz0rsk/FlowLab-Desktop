@@ -111,14 +111,6 @@ void Connection::processDpi(const unsigned char *packetPtr, const unsigned short
 	);
 }
 
-bool Connection::shouldClose() const {
-	if (lastPacketSentTime.has_value()) {
-		return std::chrono::system_clock::now() - *lastPacketSentTime > std::chrono::seconds(30);
-	} else {
-		return std::chrono::system_clock::now() - createdTime > std::chrono::seconds(30);
-	}
-}
-
 std::shared_lock<std::shared_mutex> Connection::getReadLock() {
 	return std::shared_lock(mutex);
 }

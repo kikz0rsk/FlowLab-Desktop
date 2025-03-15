@@ -226,3 +226,7 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 void UdpConnection::forcefullyCloseAll() {
 	gracefullyCloseRemoteSocket();
 }
+
+bool UdpConnection::canRemove() const {
+	return !lastPacketSentTime.has_value() || std::chrono::system_clock::now() - lastPacketSentTime.value() > std::chrono::seconds(30);
+}

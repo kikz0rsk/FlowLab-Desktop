@@ -607,3 +607,7 @@ void TcpConnection::forcefullyCloseAll() {
 	}
 	setTcpStatus(TcpStatus::CLOSED);
 }
+
+bool TcpConnection::canRemove() const {
+	return tcpStatus == TcpStatus::CLOSED && remoteSocketStatus == RemoteSocketStatus::CLOSED;
+}

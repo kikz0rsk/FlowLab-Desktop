@@ -92,7 +92,7 @@ class Connection {
 
 		void processDpi(const unsigned char *packetPtr, unsigned short packetLen);
 
-		[[nodiscard]] virtual bool shouldClose() const;
+		[[nodiscard]] virtual bool canRemove() const = 0;
 
 		virtual void gracefullyCloseRemoteSocket() = 0;
 

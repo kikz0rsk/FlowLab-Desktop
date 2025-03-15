@@ -32,4 +32,6 @@ class UdpConnection : public Connection {
 		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
 
 		void forcefullyCloseAll() override;
+
+		[[nodiscard]] bool canRemove() const override;
 };

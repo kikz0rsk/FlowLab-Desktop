@@ -116,7 +116,6 @@ class ProxyService {
 		};
 
 	protected:
-		std::set<OnConnectionCallback> onConnectionCallbacks{};
 		std::list<std::shared_ptr<Client>> clients;
 		std::thread thread;
 		SOCKET serverSocket6{};
@@ -133,10 +132,7 @@ class ProxyService {
 		void start();
 		void stop();
 
-		void registerConnectionCallback(const OnConnectionCallback &callback);
-		void unregisterConnectionCallback(OnConnectionCallback callback);
-
-		[[nodiscard]] std::shared_ptr<ConnectionManager> getConnections() const;
+		[[nodiscard]] std::shared_ptr<ConnectionManager> getConnectionManager() const;
 
 		[[nodiscard]] std::shared_ptr<DnsManager> getDnsManager() const;
 

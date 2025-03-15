@@ -1,6 +1,9 @@
 #include "connection_manager.h"
 
 void ConnectionManager::addConnection(const std::shared_ptr<Connection> &connection) {
+	if (connections.size() > 3000) {
+		cleanUp();
+	}
 	connections[
 		getKey(
 			connection->getClient()->getClientIp(),
@@ -12,6 +15,9 @@ void ConnectionManager::addConnection(const std::shared_ptr<Connection> &connect
 		)
 	] = connection;
 	connection->setOrderNum(orderNum++);
+	for (const auto &callback : onConnectionCallbacks) {
+		callback->operator()(true, connection);
+	}
 }
 
 std::shared_ptr<Connection> ConnectionManager::find(
@@ -45,4 +51,30 @@ std::string ConnectionManager::getKey(
 ) {
 	return clientIp.toString() + "," + srcIp.toString() + "," + std::to_string(srcPort) + "," + dstIp.toString() + "," + std::to_string(dstPort) + "," + (protocol ==
 		Protocol::TCP ? "tcp" : "udp");
+}
+
+void ConnectionManager::cleanUp() {
+	for (auto it = connections.begin(); it != connections.end();) {
+		if (it->second->canRemove()) {
+			for (const auto &callback : onConnectionCallbacks) {
+				callback->operator()(false, it->second);
+			}
+			it = connections.erase(it);
+		} else {
+			++it;
+		}
+	}
+}
+
+void ConnectionManager::registerConnectionCallback(const OnConnectionCallback &callback) {
+	onConnectionCallbacks.emplace(callback);
+}
+
+void ConnectionManager::unregisterConnectionCallback(OnConnectionCallback callback) {
+	for (auto it = onConnectionCallbacks.begin(); it != onConnectionCallbacks.end(); ++it) {
+		if (*it == callback) {
+			onConnectionCallbacks.erase(it);
+			break;
+		}
+	}
 }

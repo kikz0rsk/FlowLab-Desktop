@@ -21,15 +21,19 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	ui->connectionsList->setModel(&model);
 	onConnectionCallback = std::make_shared<std::function<void (bool, std::shared_ptr<Connection>)>>(
 		[this](bool added, std::shared_ptr<Connection> connection) {
-			addConnection(std::move(connection));
+			if (added) {
+				addConnection(std::move(connection));
+			} else {
+				removeConnection(std::move(connection));
+			}
 		}
 	);
-	mainWindow.getProxyService()->registerConnectionCallback(onConnectionCallback);
+	mainWindow.getProxyService()->getConnectionManager()->registerConnectionCallback(onConnectionCallback);
 }
 
 ConnectionsPage::~ConnectionsPage() {
 	delete ui;
-	mainWindow.getProxyService()->unregisterConnectionCallback(onConnectionCallback);
+	mainWindow.getProxyService()->getConnectionManager()->unregisterConnectionCallback(onConnectionCallback);
 }
 
 void ConnectionsPage::utf8Button_clicked() {
@@ -103,4 +107,15 @@ void ConnectionsPage::addConnection(std::shared_ptr<Connection> connection) {
 	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
 	auto *protocol = new QStandardItem(connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP");
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, protocol});
+}
+
+void ConnectionsPage::removeConnection(std::shared_ptr<Connection> connection) {
+	for (int i = 0; i < model.rowCount(); i++) {
+		auto index = model.index(i, 1);
+		auto conn = index.data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
+		if (conn == connection) {
+			model.removeRow(i);
+			return;
+		}
+	}
 }
