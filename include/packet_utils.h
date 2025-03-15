@@ -8,6 +8,6 @@ namespace pcpp {
 }
 
 class PacketUtils {
-public:
-	static std::string toString(const pcpp::Packet &packet);
+	public:
+		static std::string toString(const pcpp::Packet &packet);
 };

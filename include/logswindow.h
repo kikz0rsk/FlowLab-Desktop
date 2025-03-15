@@ -7,26 +7,26 @@
 #include "logger.h"
 
 namespace Ui {
-class LogsWindow;
+	class LogsWindow;
 }
 
 class LogsWindow : public QWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 
-public:
-    explicit LogsWindow(QWidget *parent = nullptr);
-    ~LogsWindow();
+	public:
+		explicit LogsWindow(QWidget *parent = nullptr);
+		~LogsWindow();
 
-signals:
-    void onLog(std::string log);
+	signals:
+		void onLog(std::string log);
 
-public slots:
-    void appendLog(std::string log);
+	public slots:
+		void appendLog(std::string log);
 
-private:
-    Ui::LogsWindow *ui;
-    Logger::OnLogCallback logCallback;
+	private:
+		Ui::LogsWindow *ui;
+		Logger::OnLogCallback logCallback;
 };
 
-#endif // LOGSWINDOW_H
+#endif// LOGSWINDOW_H

@@ -31,7 +31,7 @@ class DnsPage : public QWidget
 		Ui::DnsPage *ui;
 		MainWindow& mainWindow;
 		std::shared_ptr<DnsManager> dnsManager;
-		QStandardItemModel* model;
+		QStandardItemModel *model;
 		std::shared_ptr<std::function<void (std::shared_ptr<DnsEntry>)>> addDnsCallback;
 };
 

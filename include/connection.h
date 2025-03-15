@@ -55,7 +55,7 @@ class Connection {
 		std::atomic_uint64_t receivedBytes = 0;
 
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
-		std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct*)>> ndpiFlow = nullptr;
+		std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>> ndpiFlow = nullptr;
 		ndpi::ndpi_protocol ndpiProtocol{};
 		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		std::shared_ptr<DnsManager> dnsManager;
@@ -138,7 +138,7 @@ class Connection {
 
 		void setDnsManager(std::shared_ptr<DnsManager> dnsManager);
 
-		[[nodiscard]] std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct*)>>& getNdpiFlow();
+		[[nodiscard]] std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>& getNdpiFlow();
 
 		void log(const std::string& msg) const;
 
