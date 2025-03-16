@@ -17,7 +17,6 @@
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "ndpi.h"
-#include "forwarder.h"
 
 namespace pcpp {
 	class IPv4Layer;

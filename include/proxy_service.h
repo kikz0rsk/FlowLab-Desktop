@@ -7,6 +7,7 @@
 #include <botan/certstor.h>
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
+#include <botan/tls_exceptn.h>
 #include <botan/x509path.h>
 
 #include <pcapplusplus/PcapFileDevice.h>
