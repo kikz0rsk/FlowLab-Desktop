@@ -44,7 +44,6 @@ void UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		const auto data = udpLayer->getLayerPayload();
 		{
 			auto writeLock = getWriteLock();
-			// dataStream.reserve(dataStream.size() + dataVec.size());
 			if (dataStream.size() < 1'000'000) {
 				dataStream.insert(dataStream.end(), data, data + udpLayer->getLayerPayloadSize());
 			}
@@ -166,11 +165,9 @@ std::vector<uint8_t> UdpConnection::read() {
 	{
 		ZoneScopedN("dataStreamWrite");
 		auto writeLock = getWriteLock();
-		// dataStream.reserve(dataStream.size() + length);
 		if (dataStream.size() < 1'000'000) {
 			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
 		}
-		// dataStream.emplace_back(buffer.begin(), buffer.begin() + length);
 	}
 	receivedBytes += length;
 
@@ -202,10 +199,6 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 		if (!packet) {
 			break;
 		}
-
-		// log(
-		// 	"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
-		// );
 
 		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {

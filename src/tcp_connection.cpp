@@ -150,7 +150,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
 		resetState();
-		if (dstPort == 443) {
+		if (pcpp::SSLLayer::isSSLPort(dstPort)) {
 			this->doTlsRelay = true;
 		}
 
@@ -180,13 +180,11 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
 	if (tcpLayer->getTcpHeader()->ackFlag == 1) {
-		// const long long unAcked = ((static_cast<long long>(packetAckNumber) - 1) - static_cast<long long>(ourSequenceNumber.load()));
 		if (packetAckNumber >= lastRemoteAckedNum) {
 			lastRemoteAckedNum = packetAckNumber;
 		}
 		const long long unAcked = static_cast<long long>(ourSequenceNumber.load()) - static_cast<long long>(lastRemoteAckedNum);
 		unAckedBytes = unAcked > 0 ? unAcked : 0;
-		// log("Unacked bytes: " + std::to_string(unAckedBytes));
 		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
 			setTcpStatus(TcpStatus::ESTABLISHED);
 		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && lastRemoteAckedNum > finSequenceNumber) {
@@ -222,22 +220,18 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		{
 			ZoneScopedN("dataStreamWrite");
 			auto writeLock = getWriteLock();
-			// dataStream.reserve(dataStream.size() + dataSize);
 			if (dataStream.size() < 1'000'000) {
 				dataStream.insert(dataStream.end(), dataPtr, dataPtr + dataSize);
 			}
-
-			// dataStream.emplace_back(dataPtr, dataPtr + dataSize);
 		}
 
-		// auto vec = std::vector(dataPtr, dataPtr + tcpLayer->getLayerPayloadSize());
 		const auto span = std::span(dataPtr, dataSize);
 		if (doTlsRelay) {
 			if (!hasCertificate) {
 				this->tlsBuffer.insert(this->tlsBuffer.end(), span.begin(), span.end());
 			} else {
 				if (!this->tlsBuffer.empty()) {
-					std::vector<uint8_t> data(this->tlsBuffer.begin(), this->tlsBuffer.end());
+					std::vector data(this->tlsBuffer.begin(), this->tlsBuffer.end());
 					this->serverTlsForwarder->getServer()->received_data(std::span(data.begin(), data.end()));
 					this->tlsBuffer.clear();
 				}
@@ -414,7 +408,7 @@ void TcpConnection::sendAck() {
 void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	ZoneScoped;
 	sentBytes += data.size();
-	int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
+	const int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 	if (res != SOCKET_ERROR && res != data.size()) {
 		log("send() failed to send all data");
 	}
@@ -431,14 +425,7 @@ std::vector<uint8_t> TcpConnection::read() {
 		return {};
 	}
 
-	// bytesToRead = bytesToRead > 30'000 ? 30'000 : bytesToRead;
 	bytesToRead = bytesToRead < maxSegmentSize ? bytesToRead : maxSegmentSize;
-	log("bytesToRead: " + std::to_string(bytesToRead));
-	// if (unAckedBytes >= 10'000 || (unAckedBytes > 0 && unAckedBytes >= remoteWindowSize)) {
-	// 	log("Delaying read due to unacked bytes: " + std::to_string(unAckedBytes) + " " + std::to_string(remoteWindowSize));
-	//
-	// 	return {};
-	// }
 
 	std::vector<char> buffer(bytesToRead);
 
@@ -448,10 +435,6 @@ std::vector<uint8_t> TcpConnection::read() {
 	const int error = getLastSocketError();
 	mode = 0;	// Blocking mode
 	ioctlSocket(socket, FIONBIO, &mode);
-	// if (res == SOCKET_ERROR) {
-	// 	const auto errCode = getLastSocketError();
-	// 	log("ioctlsocket() failed: " + std::to_string(getLastSocketError()));
-	// }
 
 	if (length == SOCKET_ERROR) {
 		if (error == WSAEWOULDBLOCK) {
@@ -492,8 +475,6 @@ std::vector<uint8_t> TcpConnection::read() {
 
 	{
 		auto writeLock = getWriteLock();
-		// dataStream.reserve(dataStream.size() + length);
-		// dataStream.emplace_back(buffer.begin(), buffer.begin() + length);
 		if (dataStream.size() < 1'000'000) {
 			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
 		}
@@ -607,13 +588,6 @@ void TcpConnection::sendRst() {
 	sendToDeviceSocket(packet);
 }
 
-// unsigned long TcpConnection::getBytesAvailable(SOCKET socket) {
-// 	unsigned long bytes;
-// 	ioctlsocket(socket,FIONREAD, &bytes);
-//
-// 	return bytes;
-// }
-
 TcpStatus TcpConnection::getTcpStatus() const {
 	return tcpStatus.load();
 }
@@ -662,10 +636,12 @@ void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
 	Logger::get().log("TLS Server alert: " + alert.type_string());
+	this->clientTlsForwarder->getClient()->send_alert(alert);
 }
 
 void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 	Logger::get().log("TLS Client alert: " + alert.type_string());
+	this->serverTlsForwarder->getServer()->send_alert(alert);
 }
 
 void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cert) {
@@ -674,7 +650,7 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 	this->serverTlsForwarder->setCertificate(cert);
 	this->hasCertificate = true;
 	if (!this->tlsBuffer.empty()) {
-		std::vector data(tlsBuffer.begin(), tlsBuffer.end());
+		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
 		this->serverTlsForwarder->getServer()->received_data(data);
 	}
 }
@@ -682,13 +658,13 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 void TcpConnection::initTlsClient() {
 	this->clientTlsForwarder = std::make_shared<ClientForwarder>(
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
-			this->onTlsClientDataReceived(std::move(data));
+			this->onTlsClientDataReceived(data);
 		},
 		[this](std::span<const uint8_t> data) {
-			this->onTlsClientDataToSend(std::move(data));
+			this->onTlsClientDataToSend(data);
 		},
 		[this](Botan::TLS::Alert alert) {
-			this->onTlsClientAlert(std::move(alert));
+			this->onTlsClientAlert(alert);
 		},
 		[this](const Botan::X509_Certificate &cert) {
 			this->onTlsClientGotCertificate(cert);
@@ -699,13 +675,13 @@ void TcpConnection::initTlsClient() {
 void TcpConnection::initTlsServer() {
 	this->serverTlsForwarder = std::make_shared<ServerForwarder>(
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
-			this->onTlsServerDataReceived(std::move(data));
+			this->onTlsServerDataReceived(data);
 		},
 		[this](std::span<const uint8_t> data) {
-			this->onTlsServerDataToSend(std::move(data));
+			this->onTlsServerDataToSend(data);
 		},
 		[this](Botan::TLS::Alert alert) {
-			this->onTlsServerAlert(std::move(alert));
+			this->onTlsServerAlert(alert);
 		}
 	);
 }

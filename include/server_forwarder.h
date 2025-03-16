@@ -149,7 +149,7 @@ class ServerForwarder {
 
 			auto certReq = Botan::X509::create_cert_req(options, *this->generatedKey, "SHA-256", rng);
 
-			Botan::X509_CA ca(caCert, *caKey, "SHA-256", rng);
+			const Botan::X509_CA ca(caCert, *caKey, "SHA-256", rng);
 			this->generatedCert = ca.sign_request(certReq, rng, cert.not_before(), cert.not_after());
 			Logger::get().log("Generated cert: " + this->generatedCert.to_string());
 			this->creds->caCert = std::make_shared<Botan::X509_Certificate>(caCert);

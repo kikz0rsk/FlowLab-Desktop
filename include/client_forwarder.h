@@ -69,15 +69,15 @@ class ClientForwarder {
 						certificateNotifyCallback(std::move(certificateNotifyCallback))	{}
 
 				void tls_emit_data(std::span<const uint8_t> data) override {
-					this->dataReadyCallback(std::move(data));
+					this->dataReadyCallback(data);
 				}
 
 				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
-					this->dataReceivedCallback(seq_no, std::move(data));
+					this->dataReceivedCallback(seq_no, data);
 				}
 
 				void tls_alert(Botan::TLS::Alert alert) override {
-					this->tlsAlertCallback(std::move(alert));
+					this->tlsAlertCallback(alert);
 				}
 
 				void tls_verify_cert_chain(

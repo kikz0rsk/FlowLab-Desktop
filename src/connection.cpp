@@ -26,7 +26,6 @@ Connection::Connection(
 	protocol(protocol),
 	ndpiStr(ndpiStruct),
 	client(client) {
-	// dataStream.reserve(5'000);
 
 	ndpiFlow = std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>(
 		new ndpi::ndpi_flow_struct{},
@@ -60,41 +59,6 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		log("failed to send data, closing connection");
 		forcefullyCloseAll();
 	}
-
-	// this->client->getUnencryptedQueueToDevice().emplace(
-	// 	packet.getRawPacketReadOnly()->getRawData(),
-	// 	packet.getRawPacketReadOnly()->getRawData() + packet.getRawPacketReadOnly()->getRawDataLen()
-	// );
-
-	// u_long mode = 0;// Blocking mode
-	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
-	//
-	// // TODO problem s SocketUtils::writeExactly
-	// int res = send(
-	// 	client->getClientSocket(),
-	// 	reinterpret_cast<const char *>(packet.getRawPacketReadOnly()->getRawData()),
-	// 	packet.getRawPacketReadOnly()->getRawDataLen(),
-	// 	0
-	// );
-	// const auto errCode = getLastSocketError();
-	// if (res == SOCKET_ERROR) {
-	// 	log("sendToDeviceSocket send() returned: " + std::to_string(errCode));
-	// }
-	//
-	// mode = 1;// Non-blocking mode
-	// ioctlsocket(client->getClientSocket(), FIONBIO, &mode);
-	//
-	// // if (sent != packet.getRawPacketReadOnly()->getRawDataLen()) {
-	// // 	log("sendToDeviceSocket send() failed: " + std::to_string(getLastSocketError()));
-	// // }
-	// if (res == SOCKET_ERROR) {
-	// 	if (errCode == WSAEWOULDBLOCK) {
-	// 		log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
-	// 	}
-	// 	log("sendToDeviceSocket send() failed: " + std::to_string(errCode));
-	// } else if (res != packet.getRawPacketReadOnly()->getRawDataLen()) {
-	// 	log("sendToDeviceSocket send() failed to send all data");
-	// }
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
 	++receivedPacketCount;

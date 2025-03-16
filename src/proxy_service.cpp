@@ -248,14 +248,6 @@ void ProxyService::selectLoop() {
 						Logger::get().log("Sent " + std::to_string(res) + " bytes to client");
 					}
 				}
-				// try {
-				// 	const auto& data = client->getUnencryptedQueueToDevice().front();
-				// 	client->getTlsServer()->send(data);
-				// 	SocketUtils::writeExactlyThrowBlock(client->getClientSocket(), reinterpret_cast<const char *>(data.data()), data.size());
-				// 	client->getUnencryptedQueueToDevice().pop();
-				// } catch (const SocketUtils::WouldBlockException& e) {
-				//
-				// }
 			}
 		} catch (const SocketUtils::EofException &e) {
 			Logger::get().log("Client closed connection");
@@ -312,7 +304,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		return false;
 	}
 
-	// std::array<char, 65535> buffer{};
 	auto& buffer = client->getUnencryptedQueueFromDevice();
 	if (buffer.size() < 20) {
 		return false;
@@ -321,21 +312,15 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	bool isIpv6 = false;
 	int totalLength{};
 
-	// SocketUtils::readExactly(client->getClientSocket(), buffer.data(), 1);
 	if (((buffer[0] >> 4) & 0xF) == 6) {
 		isIpv6 = true;
 	}
 
 	if (isIpv6) {
-		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 5);
 		const auto payloadLength = (buffer[4] << 8) | (buffer[5]);
 		totalLength = payloadLength + 40;
-		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 6, totalLength - 6);
 	} else {
-		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 1, 3);
 		totalLength = (buffer[2] << 8) | (buffer[3]);
-		// Logger::get().log("Received packet of length " + std::to_string(length));
-		// SocketUtils::readExactly(client->getClientSocket(), buffer.data() + 4, totalLength - 4);
 	}
 
 	if (buffer.size() < totalLength) {
@@ -350,7 +335,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	gettimeofday(&time, nullptr);
 	pcpp::RawPacket packet(packetBuffer.data(), totalLength, time, false, isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
 	pcpp::Packet parsedPacket(&packet);
-	// Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
 
 	pcpp::IPAddress srcIp;
 	pcpp::IPAddress dstIp;
@@ -374,7 +358,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	uint16_t srcPort{};
 	uint16_t dstPort{};
 	Protocol protocol = Protocol::UDP;
-	// Logger::get().log("Received: " + PacketUtils::toString(parsedPacket));
 
 	if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
 		srcPort = tcpPacket->getSrcPort();
@@ -395,7 +378,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	}
 
 	auto connection = connections->find(client->getClientIp(), srcIp, dstIp, srcPort, dstPort, protocol);
-	bool newConnection = false;
 	if (!connection) {
 		if (protocol == Protocol::TCP) {
 			if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
@@ -438,16 +420,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 					);
 
 					client->getTlsConnection()->send(rstPacket.getRawPacketReadOnly()->getRawData(), rstPacket.getRawPacketReadOnly()->getRawDataLen());
-					// client->getUnencryptedQueueToDevice().emplace(
-					// 	rstPacket.getRawPacketReadOnly()->getRawData(),
-					// 	rstPacket.getRawPacketReadOnly()->getRawData() + rstPacket.getRawPacketReadOnly()->getRawDataLen()
-					// );
-					// send(
-					// 	client->getClientSocket(),
-					// 	reinterpret_cast<const char *>(rstPacket.getRawPacketReadOnly()->getRawData()),
-					// 	rstPacket.getRawPacketReadOnly()->getRawDataLen(),
-					// 	0
-					// );
 
 					return true;
 				}
@@ -475,7 +447,6 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		connection->setPcapWriter(pcapWriter);
 		connection->setDnsManager(dnsManager);
 		connections->addConnection(connection);
-		newConnection = true;
 	}
 
 	connection->processPacketFromDevice(networkLayer);
