@@ -19,16 +19,7 @@ class ServerForwarderCredentials : public Botan::Credentials_Manager {
 		std::shared_ptr<Botan::X509_Certificate> generatedCert;
 		std::shared_ptr<Botan::X509_Certificate> caCert;
 
-	public:
-		ServerForwarderCredentials(
-			// std::shared_ptr<Botan::Private_Key> generatedKey,
-			// std::shared_ptr<Botan::X509_Certificate> generatedCert,
-			// std::shared_ptr<Botan::X509_Certificate> caCert
-		) {
-			// this->generatedKey = std::move(generatedKey);
-			// this->generatedCert = std::move(generatedCert);
-			// this->caCert = std::move(caCert);
-		}
+		ServerForwarderCredentials() = default;
 
 		std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
 			const std::string& type,
@@ -135,16 +126,16 @@ class ServerForwarder {
 			Botan::X509_Cert_Options options{};
 			options.start = cert.not_before();
 			options.end = cert.not_after();
-			if (cert.subject_info("X520.CommonName").size() > 0) {
+			if (!cert.subject_info("X520.CommonName").empty()) {
 				options.common_name = cert.subject_info("X520.CommonName").at(0);
 			}
-			if (cert.subject_info("X520.Country").size() > 0) {
+			if (!cert.subject_info("X520.Country").empty()) {
 				options.country = cert.subject_info("X520.Country").at(0);
 			}
-			if (cert.subject_info("X520.Organization").size() > 0) {
+			if (!cert.subject_info("X520.Organization").empty()) {
 				options.organization = cert.subject_info("X520.Organization").at(0);
 			}
-			if (cert.subject_info("X509.Certificate.serial").size() > 0) {
+			if (!cert.subject_info("X509.Certificate.serial").empty()) {
 				options.serial_number = cert.subject_info("X509.Certificate.serial").at(0);
 			}
 			options.is_CA = false;

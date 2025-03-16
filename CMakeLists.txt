@@ -73,8 +73,6 @@ set(PROJECT_SOURCES
         include/pcap_writer.h
         include/dns_manager.h
         include/dns_entry.h
-        include/forwarder.h
-        src/forwarder.cpp
         include/socket_utils.h
         src/socket_utils.cpp
         include/proxy_service.h

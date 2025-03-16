@@ -44,11 +44,20 @@ ProxyService::~ProxyService() {
 
 void ProxyService::start() {
 	Botan::AutoSeeded_RNG rng{};
+	Logger::get().log("Generating RSA key pair for TLS proxy");
 	tlsProxyKey = Botan::create_private_key("RSA", rng, "2048");
+	Logger::get().log("Done generating key pair");
 	stopFlag = false;
-	pcapWriter = std::make_shared<pcpp::PcapNgFileWriterDevice>("output.pcapng");
+
+	std::stringstream buffer;
+	const auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	const auto localTime = std::localtime(&time);
+	buffer << std::put_time(localTime, "%Y_%m_%d_%H_%M_%S");
+	std::string filename = "output_" + buffer.str() + ".pcapng";
+	pcapWriter = std::make_shared<pcpp::PcapNgFileWriterDevice>(filename);
+
 	if (!pcapWriter->open()){
-		std::cerr << "Cannot open output.pcap for writing" << std::endl;
+		std::cerr << "Cannot open " + filename + " for writing" << std::endl;
 		exit(210);
 	}
 
