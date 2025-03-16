@@ -641,7 +641,9 @@ void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
 
 void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 	Logger::get().log("TLS Client alert: " + alert.type_string());
-	this->serverTlsForwarder->getServer()->send_alert(alert);
+	if (this->serverTlsForwarder && this->serverTlsForwarder->getServer()) {
+		this->serverTlsForwarder->getServer()->send_alert(alert);
+	}
 }
 
 void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cert) {
