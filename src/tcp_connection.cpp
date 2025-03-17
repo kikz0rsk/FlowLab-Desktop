@@ -45,6 +45,7 @@ void TcpConnection::resetState() {
 	serverTlsForwarder.reset();
 	hasCertificate = false;
 	doTlsRelay = false;
+	serverNameIndication.clear();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
 }
@@ -226,9 +227,20 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		}
 
 		const auto span = std::span(dataPtr, dataSize);
+
 		if (doTlsRelay) {
 			if (!hasCertificate) {
+				if (networkLayer->getNextLayer()->getDataLen() != 0) {
+					if (const auto sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
+						if (const auto clientHello = sslLayer->getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
+							if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
+								serverNameIndication = sniExt->getHostName();
+							}
+						}
+					}
+				}
 				this->tlsBuffer.insert(this->tlsBuffer.end(), span.begin(), span.end());
+				initTlsClient();
 			} else {
 				if (!this->tlsBuffer.empty()) {
 					std::vector data(this->tlsBuffer.begin(), this->tlsBuffer.end());
@@ -367,9 +379,6 @@ void TcpConnection::openSocket() {
 			if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
 				setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 				sendSynAck();
-				if (doTlsRelay) {
-					initTlsClient();
-				}
 				ourSequenceNumber += 1;
 			}
 
@@ -497,9 +506,6 @@ void TcpConnection::writeEvent() {
 		ioctlSocket(socket, FIONBIO, &mode);
 		sendSynAck();
 		ourSequenceNumber += 1;
-		if (doTlsRelay) {
-			initTlsClient();
-		}
 	}
 }
 
@@ -635,12 +641,12 @@ void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
 }
 
 void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
-	Logger::get().log("TLS Server alert: " + alert.type_string());
+	log(this->serverNameIndication + " TLS Server alert: " + alert.type_string());
 	this->clientTlsForwarder->getClient()->send_alert(alert);
 }
 
 void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
-	Logger::get().log("TLS Client alert: " + alert.type_string());
+	log(this->serverNameIndication + " TLS Client alert: " + alert.type_string());
 	if (this->serverTlsForwarder && this->serverTlsForwarder->getServer()) {
 		this->serverTlsForwarder->getServer()->send_alert(alert);
 	}
@@ -648,17 +654,19 @@ void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 
 void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cert) {
 	Logger::get().log("Received certificate: " + cert.to_string());
-	this->initTlsServer();
-	this->serverTlsForwarder->setCertificate(cert);
+	this->initTlsServer(cert);
 	this->hasCertificate = true;
 	if (!this->tlsBuffer.empty()) {
 		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
 		this->serverTlsForwarder->getServer()->received_data(data);
+		this->tlsBuffer.clear();
 	}
 }
 
 void TcpConnection::initTlsClient() {
 	this->clientTlsForwarder = std::make_shared<ClientForwarder>(
+		this->serverNameIndication,
+		this->dstPort,
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
 			this->onTlsClientDataReceived(data);
 		},
@@ -674,8 +682,9 @@ void TcpConnection::initTlsClient() {
 	);
 }
 
-void TcpConnection::initTlsServer() {
+void TcpConnection::initTlsServer(const Botan::X509_Certificate &cert) {
 	this->serverTlsForwarder = std::make_shared<ServerForwarder>(
+		cert,
 		[this](uint64_t seq_no, std::span<const uint8_t> data) {
 			this->onTlsServerDataReceived(data);
 		},

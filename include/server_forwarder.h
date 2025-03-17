@@ -67,27 +67,65 @@ class ServerForwarder {
 
 	public:
 		ServerForwarder(
+			const Botan::X509_Certificate& origCert,
 			DataReceivedCallback dataReceivedCallback,
 			DataReadyCallback dataReadyCallback,
 			TlsAlertCallback tlsAlertCallback
 		) :
+			originalCert(origCert),
 			dataReceivedCallback(std::move(dataReceivedCallback)),
 			dataReadyCallback(std::move(dataReadyCallback)),
 			tlsAlertCallback(std::move(tlsAlertCallback)) {
+			caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
+			Botan::DataSource_Stream in(R"(flowlab_ca.pkcs8)");
+			caKey = Botan::PKCS8::load_key(in);
+
 			auto rng = std::make_shared<Botan::AutoSeeded_RNG>();
+			this->creds = std::make_shared<ServerForwarderCredentials>();
+
+			this->generatedKey = ProxyService::tlsProxyKey;
+			Botan::X509_Cert_Options options{};
+			options.start = originalCert.not_before();
+			options.end = originalCert.not_after();
+			if (!originalCert.subject_info("X520.CommonName").empty()) {
+				options.common_name = originalCert.subject_info("X520.CommonName").at(0);
+			}
+			if (!originalCert.subject_info("X520.Country").empty()) {
+				options.country = originalCert.subject_info("X520.Country").at(0);
+			}
+			if (!originalCert.subject_info("X520.Organization").empty()) {
+				options.organization = originalCert.subject_info("X520.Organization").at(0);
+			}
+			if (!originalCert.subject_info("X509.Certificate.serial").empty()) {
+				options.serial_number = originalCert.subject_info("X509.Certificate.serial").at(0);
+			}
+			options.is_CA = false;
+			options.constraints = originalCert.constraints();
+
+			auto alternateSubjectNames = std::make_unique<Botan::Cert_Extension::Subject_Alternative_Name>();
+			auto origSubjectAlternateNames = originalCert.v3_extensions().get(Botan::OID("2.5.29.17"));
+			if (origSubjectAlternateNames) {
+				options.extensions.add(origSubjectAlternateNames->copy());
+			}
+
+			auto certReq = Botan::X509::create_cert_req(options, *this->generatedKey, "SHA-256", *rng);
+
+			const Botan::X509_CA ca(caCert, *caKey, "SHA-256", *rng);
+			this->generatedCert = ca.sign_request(certReq, *rng, originalCert.not_before(), originalCert.not_after());
+			Logger::get().log("Generated cert: " + this->generatedCert.to_string());
+			this->creds->caCert = std::make_shared<Botan::X509_Certificate>(caCert);
+			this->creds->generatedCert = std::make_shared<Botan::X509_Certificate>(this->generatedCert);
+			this->creds->generatedKey = this->generatedKey;
+
 			auto session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-			auto creds = std::make_shared<ServerForwarderCredentials>();
 			auto policy = std::make_shared<Botan::TLS::Strict_Policy>();
 			std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerForwarderCallbacks>(
 				this->dataReceivedCallback,
 				this->dataReadyCallback,
 				this->tlsAlertCallback
 			);
-			this->creds = creds;
+
 			server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
-			caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
-			Botan::DataSource_Stream in(R"(flowlab_ca.pkcs8)");
-			caKey = Botan::PKCS8::load_key(in);
 		}
 
 		class ServerForwarderCallbacks : public Botan::TLS::Callbacks {
@@ -117,45 +155,6 @@ class ServerForwarder {
 					this->tlsAlertCallback(alert);
 				}
 		};
-
-		void setCertificate(const Botan::X509_Certificate& cert) {
-			this->originalCert = cert;
-
-			Botan::AutoSeeded_RNG rng{};
-			this->generatedKey = ProxyService::tlsProxyKey;
-			Botan::X509_Cert_Options options{};
-			options.start = cert.not_before();
-			options.end = cert.not_after();
-			if (!cert.subject_info("X520.CommonName").empty()) {
-				options.common_name = cert.subject_info("X520.CommonName").at(0);
-			}
-			if (!cert.subject_info("X520.Country").empty()) {
-				options.country = cert.subject_info("X520.Country").at(0);
-			}
-			if (!cert.subject_info("X520.Organization").empty()) {
-				options.organization = cert.subject_info("X520.Organization").at(0);
-			}
-			if (!cert.subject_info("X509.Certificate.serial").empty()) {
-				options.serial_number = cert.subject_info("X509.Certificate.serial").at(0);
-			}
-			options.is_CA = false;
-			options.constraints = cert.constraints();
-
-			auto alternateSubjectNames = std::make_unique<Botan::Cert_Extension::Subject_Alternative_Name>();
-			auto origSubjectAlternateNames = cert.v3_extensions().get(Botan::OID("2.5.29.17"));
-			if (origSubjectAlternateNames) {
-				options.extensions.add(origSubjectAlternateNames->copy());
-			}
-
-			auto certReq = Botan::X509::create_cert_req(options, *this->generatedKey, "SHA-256", rng);
-
-			const Botan::X509_CA ca(caCert, *caKey, "SHA-256", rng);
-			this->generatedCert = ca.sign_request(certReq, rng, cert.not_before(), cert.not_after());
-			Logger::get().log("Generated cert: " + this->generatedCert.to_string());
-			this->creds->caCert = std::make_shared<Botan::X509_Certificate>(caCert);
-			this->creds->generatedCert = std::make_shared<Botan::X509_Certificate>(this->generatedCert);
-			this->creds->generatedKey = this->generatedKey;
-		}
 
 		[[nodiscard]] std::shared_ptr<Botan::TLS::Server>& getServer() {
 			return server;

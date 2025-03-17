@@ -25,6 +25,7 @@ class TcpConnection : public Connection {
 		bool hasCertificate = false;
 		bool doTlsRelay = false;
 		std::deque<uint8_t> tlsBuffer{};
+		std::string serverNameIndication{};
 
 	public:
 		TcpConnection(
@@ -90,5 +91,5 @@ class TcpConnection : public Connection {
 		void onTlsServerAlert(Botan::TLS::Alert alert);
 
 		void initTlsClient();
-		void initTlsServer();
+		void initTlsServer(const Botan::X509_Certificate &cert);
 };

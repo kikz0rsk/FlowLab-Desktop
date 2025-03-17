@@ -10,6 +10,8 @@
 #include <botan/tls.h>
 #include <botan/certstor_system.h>
 
+#include <utility>
+
 #include "logger.h"
 
 class ClientForwarder {
@@ -25,9 +27,13 @@ class ClientForwarder {
 		TlsAlertCallback tlsAlertCallback;
 		CertificateNotifyCallback certificateNotifyCallback;
 		std::shared_ptr<Botan::TLS::Client> client;
+		std::string serverName;
+		uint32_t serverPort;
 
 	public:
 		ClientForwarder(
+			std::string serverName,
+			uint16_t port,
 			DataReceivedCallback dataReceivedCallback,
 			DataReadyCallback dataReadyCallback,
 			TlsAlertCallback tlsAlertCallback,
@@ -36,7 +42,9 @@ class ClientForwarder {
 			dataReceivedCallback(std::move(dataReceivedCallback)),
 			dataReadyCallback(std::move(dataReadyCallback)),
 			tlsAlertCallback(std::move(tlsAlertCallback)),
-			certificateNotifyCallback(std::move(certificateNotifyCallback)) {
+			certificateNotifyCallback(std::move(certificateNotifyCallback)),
+			serverName(std::move(serverName)),
+			serverPort(port) {
 			std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
 			std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
 			std::shared_ptr<ClientForwarderCredentials> creds = std::make_shared<ClientForwarderCredentials>();
@@ -47,7 +55,14 @@ class ClientForwarder {
 				this->tlsAlertCallback,
 				this->certificateNotifyCallback
 			);
-			this->client = std::make_shared<Botan::TLS::Client>(callbacks, session_mgr, creds, policy, rng);
+			this->client = std::make_shared<Botan::TLS::Client>(
+				callbacks,
+				session_mgr,
+				creds,
+				policy,
+				rng,
+				this->serverName.empty() ? Botan::TLS::Server_Information() : Botan::TLS::Server_Information(this->serverName, this->serverPort)
+			);
 		}
 
 		class ClientForwarderCallbacks : public Botan::TLS::Callbacks {
