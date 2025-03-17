@@ -1,6 +1,5 @@
 #pragma once
 
-#include <botan/auto_rng.h>
 #include <botan/certstor.h>
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
@@ -9,10 +8,6 @@
 #include <botan/tls_client.h>
 #include <botan/tls.h>
 #include <botan/certstor_system.h>
-
-#include <utility>
-
-#include "logger.h"
 
 class ClientForwarder {
 	public:
@@ -38,32 +33,7 @@ class ClientForwarder {
 			DataReadyCallback dataReadyCallback,
 			TlsAlertCallback tlsAlertCallback,
 			CertificateNotifyCallback certificateNotifyCallback
-		) :
-			dataReceivedCallback(std::move(dataReceivedCallback)),
-			dataReadyCallback(std::move(dataReadyCallback)),
-			tlsAlertCallback(std::move(tlsAlertCallback)),
-			certificateNotifyCallback(std::move(certificateNotifyCallback)),
-			serverName(std::move(serverName)),
-			serverPort(port) {
-			std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
-			std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-			std::shared_ptr<ClientForwarderCredentials> creds = std::make_shared<ClientForwarderCredentials>();
-			std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
-			std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ClientForwarderCallbacks>(
-				this->dataReceivedCallback,
-				this->dataReadyCallback,
-				this->tlsAlertCallback,
-				this->certificateNotifyCallback
-			);
-			this->client = std::make_shared<Botan::TLS::Client>(
-				callbacks,
-				session_mgr,
-				creds,
-				policy,
-				rng,
-				this->serverName.empty() ? Botan::TLS::Server_Information() : Botan::TLS::Server_Information(this->serverName, this->serverPort)
-			);
-		}
+		);
 
 		class ClientForwarderCallbacks : public Botan::TLS::Callbacks {
 			protected:
@@ -78,22 +48,13 @@ class ClientForwarder {
 					DataReadyCallback dataReadyCallback,
 					TlsAlertCallback tlsAlertCallback,
 					CertificateNotifyCallback certificateNotifyCallback
-				) : dataReceivedCallback(std::move(dataReceivedCallback)),
-						dataReadyCallback(std::move(dataReadyCallback)),
-						tlsAlertCallback(std::move(tlsAlertCallback)),
-						certificateNotifyCallback(std::move(certificateNotifyCallback))	{}
+				);
 
-				void tls_emit_data(std::span<const uint8_t> data) override {
-					this->dataReadyCallback(data);
-				}
+				void tls_emit_data(std::span<const uint8_t> data) override;
 
-				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
-					this->dataReceivedCallback(seq_no, data);
-				}
+				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override;
 
-				void tls_alert(Botan::TLS::Alert alert) override {
-					this->tlsAlertCallback(alert);
-				}
+				void tls_alert(Botan::TLS::Alert alert) override;
 
 				void tls_verify_cert_chain(
 					const std::vector<Botan::X509_Certificate> &cert_chain,
@@ -102,31 +63,7 @@ class ClientForwarder {
 					Botan::Usage_Type usage,
 					std::string_view hostname,
 					const Botan::TLS::Policy &policy
-				) override {
-					if (cert_chain.empty()) {
-						throw Botan::Invalid_Argument("Certificate chain was empty");
-					}
-
-					Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
-
-					Botan::Path_Validation_Result result = x509_path_validate(
-						cert_chain,
-						restrictions,
-						trusted_roots,
-						hostname,
-						usage,
-						tls_current_timestamp(),
-						tls_verify_cert_chain_ocsp_timeout(),
-						ocsp_responses
-					);
-
-					if (!result.successful_validation()) {
-						Logger::get().log("[TLS Proxy Client] Certificate validation failure: " + result.result_string());
-						throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
-					}
-
-					this->certificateNotifyCallback(cert_chain[0]);
-				}
+				) override;
 		};
 
 		class ClientForwarderCredentials : public Botan::Credentials_Manager {
@@ -134,31 +71,25 @@ class ClientForwarder {
 				Botan::System_Certificate_Store caCertStore;
 
 			public:
-				explicit ClientForwarderCredentials() = default;
+				explicit ClientForwarderCredentials();
 
 				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
 					const std::string &type,
 					const std::string &context
-				) override {
-					return {&caCertStore};
-				}
+				) override;
 
 				std::vector<Botan::X509_Certificate> cert_chain(
 					const std::vector<std::string> &cert_key_types,
 					const std::vector<Botan::AlgorithmIdentifier> &cert_signature_schemes,
 					const std::string &type,
 					const std::string &context
-				) override {
-					return {};
-				}
+				) override;
 
 				std::shared_ptr<Botan::Private_Key> private_key_for(
 					const Botan::X509_Certificate &cert,
 					const std::string &type,
 					const std::string &context
-				) override {
-					return nullptr;
-				}
+				) override;
 		};
 
 		[[nodiscard]] std::shared_ptr<Botan::TLS::Client> & getClient() {

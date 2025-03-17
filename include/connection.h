@@ -1,13 +1,11 @@
 #pragma once
 
 #include <atomic>
-#include <list>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <pcapplusplus/IpAddress.h>
-#include <pcapplusplus/IPLayer.h>
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFileDevice.h>
 

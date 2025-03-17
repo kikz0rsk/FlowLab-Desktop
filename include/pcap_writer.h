@@ -2,7 +2,6 @@
 
 #include <string>
 
-
 class PcapWriter {
 	public:
 		PcapWriter(const std::string &filename) {

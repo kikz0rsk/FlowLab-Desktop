@@ -8,12 +8,12 @@ class SocketUtils {
 	public:
 		class EofException : public std::exception {
 			public:
-				const char * what() const noexcept override;
+				[[nodiscard]] const char * what() const noexcept override;
 		};
 
 		class WouldBlockException : public std::exception {
 			public:
-				const char * what() const noexcept override;
+				[[nodiscard]] const char * what() const noexcept override;
 		};
 
 		class SocketError : public std::exception {
@@ -21,9 +21,9 @@ class SocketUtils {
 				int errorCode;
 				std::string msg;
 			public:
-				SocketError(int errorCode);
+				explicit SocketError(int errorCode);
 
-				const char * what() const noexcept override;
+				[[nodiscard]] const char * what() const noexcept override;
 		};
 
 		static int write(SOCKET socket, const char *buffer, int length);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <deque>
 #include <queue>
 #include <utility>
 #include <vector>

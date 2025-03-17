@@ -7,7 +7,6 @@
 #include <pcapplusplus/PcapFileDevice.h>
 
 #include "connection.h"
-#include "connection_manager.h"
 #include "dns_manager.h"
 #include "logswindow.h"
 #include "proxy_service.h"

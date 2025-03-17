@@ -78,6 +78,8 @@ set(PROJECT_SOURCES
         include/proxy_service.h
         src/proxy_service.cpp
         include/client.h
+        src/client_forwarder.cpp
+        src/server_forwarder.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
