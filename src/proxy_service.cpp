@@ -7,6 +7,10 @@
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/UdpLayer.h>
 #include <botan/pk_algs.h>
+#include <pcapplusplus/DnsLayer.h>
+
+#include "connection_manager.h"
+#include "dns_manager.h"
 #include "tracy/Tracy.hpp"
 
 #include "logger.h"
@@ -426,6 +430,7 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 			}
 
 			connection = std::make_shared<TcpConnection>(
+				shared_from_this(),
 				client,
 				srcIp,
 				dstIp,
@@ -460,4 +465,12 @@ void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
 			conn.second->forcefullyCloseAll();
 		}
 	}
+}
+
+void ProxyService::setEnableTlsRelay(bool enable) {
+	this->enableTlsRelay = enable;
+}
+
+bool ProxyService::getEnableTlsRelay() const {
+	return this->enableTlsRelay.load();
 }

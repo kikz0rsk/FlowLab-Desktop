@@ -4,6 +4,7 @@
 #include <QStandardItemModel>
 #include <QWidget>
 #include "connection.h"
+#include "connection_manager.h"
 #include "proxy_service.h"
 
 class MainWindow;
@@ -33,7 +34,7 @@ class ConnectionsPage : public QWidget
 		Ui::ConnectionsPage *ui;
 		QStandardItemModel model;
 		int showMode = 0;
-		ProxyService::OnConnectionCallback onConnectionCallback;
+		ConnectionManager::OnConnectionCallback onConnectionCallback;
 };
 
 #endif// CONNECTIONS_H

@@ -11,6 +11,7 @@
 #include "logger.h"
 #include "logswindow.h"
 #include "dnspage.h"
+#include "tls_page.h"
 #include "packet_utils.h"
 #include "tcp_connection.h"
 #include "udp_connection.h"
@@ -23,8 +24,10 @@ MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *pare
 	dnsManager = this->proxyService->getDnsManager();
 	connectionsPage = new ConnectionsPage(*this);
 	dnsPage = new DnsPage(*this, dnsManager);
+	tlsPage = new TlsPage(*this);
 
 	ui->tabWidget->addTab(connectionsPage, "Connections");
+	ui->tabWidget->addTab(dnsPage, "DNS");
 	ui->tabWidget->addTab(dnsPage, "DNS");
 
 	connect(ui->actionShow_logs, &QAction::triggered, this, &MainWindow::actionShow_logs_clicked);

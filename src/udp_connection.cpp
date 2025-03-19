@@ -5,8 +5,10 @@
 #include <pcapplusplus/UdpLayer.h>
 
 #include <utility>
+#include <pcapplusplus/DnsLayer.h>
 #include <tracy/Tracy.hpp>
 
+#include "dns_manager.h"
 #include "packet_utils.h"
 
 UdpConnection::UdpConnection(

@@ -1,5 +1,7 @@
 #include "connection_manager.h"
 
+#include "tcp_connection.h"
+
 void ConnectionManager::addConnection(const std::shared_ptr<Connection> &connection) {
 	if (connections.size() > 3000) {
 		cleanUp();
@@ -55,14 +57,22 @@ std::string ConnectionManager::getKey(
 
 void ConnectionManager::cleanUp() {
 	for (auto it = connections.begin(); it != connections.end();) {
-		if (it->second->canRemove()) {
-			for (const auto &callback : onConnectionCallbacks) {
-				callback->operator()(false, it->second);
-			}
-			it = connections.erase(it);
-		} else {
+		if (!it->second->canRemove()) {
 			++it;
+			continue;
 		}
+
+		auto tcpCon = std::dynamic_pointer_cast<TcpConnection>(it->second);
+		for (const auto &callback : onConnectionCallbacks) {
+			callback->operator()(false, it->second);
+		}
+		if (tcpCon && tlsConnections.contains(tcpCon)) {
+			for (const auto &callback : onTlsConnectionCallbacks) {
+				callback->operator()(false, tcpCon);
+			}
+			tlsConnections.erase(tcpCon);
+		}
+		it = connections.erase(it);
 	}
 }
 
@@ -71,10 +81,20 @@ void ConnectionManager::registerConnectionCallback(const OnConnectionCallback &c
 }
 
 void ConnectionManager::unregisterConnectionCallback(OnConnectionCallback callback) {
-	for (auto it = onConnectionCallbacks.begin(); it != onConnectionCallbacks.end(); ++it) {
-		if (*it == callback) {
-			onConnectionCallbacks.erase(it);
-			break;
-		}
+	onConnectionCallbacks.erase(callback);
+}
+
+void ConnectionManager::registerTlsConnectionCallback(const OnTlsConnectionCallback &callback) {
+	onTlsConnectionCallbacks.emplace(callback);
+}
+
+void ConnectionManager::unregisterTlsConnectionCallback(OnTlsConnectionCallback callback) {
+	onTlsConnectionCallbacks.erase(callback);
+}
+
+void ConnectionManager::markAsTlsConnection(std::shared_ptr<TcpConnection> connection) {
+	tlsConnections.insert(connection);
+	for (const auto &callback : onTlsConnectionCallbacks) {
+		callback->operator()(true, connection);
 	}
 }

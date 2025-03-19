@@ -14,14 +14,17 @@
 #include <tracy/Tracy.hpp>
 
 #include "client.h"
-#include "connection_manager.h"
 #include "logger.h"
 
+namespace ndpi {
+	struct ndpi_detection_module_struct;
+}
 
-class ProxyService {
+class DnsManager;
+class ConnectionManager;
+
+class ProxyService : public std::enable_shared_from_this<ProxyService> {
 	public:
-		using OnConnectionCallback = std::shared_ptr<std::function<void (bool, std::shared_ptr<Connection>)>>;
-
 		class ServerCallbacks : public Botan::TLS::Callbacks {
 			protected:
 				Client& client;
@@ -128,6 +131,7 @@ class ProxyService {
 		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		ndpi::ndpi_detection_module_struct *ndpiStruct;
 		std::shared_ptr<DnsManager> dnsManager;
+		std::atomic_bool enableTlsRelay = false;
 
 	public:
 		ProxyService();
@@ -152,4 +156,8 @@ class ProxyService {
 
 		bool sendFromDevice(std::shared_ptr<Client> client);
 		void cleanUpAfterClient(std::shared_ptr<Client> client);
+
+	public:
+		void setEnableTlsRelay(bool enable);
+		[[nodiscard]] bool getEnableTlsRelay() const;
 };

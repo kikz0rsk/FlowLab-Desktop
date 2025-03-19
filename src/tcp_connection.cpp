@@ -17,6 +17,7 @@
 #include "packet_utils.h"
 
 TcpConnection::TcpConnection(
+	std::weak_ptr<ProxyService> proxyService,
 	std::shared_ptr<Client> client,
 	const pcpp::IPAddress &src_ip,
 	const pcpp::IPAddress &dst_ip,
@@ -24,7 +25,7 @@ TcpConnection::TcpConnection(
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) :
-	Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct) {}
+	Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct), proxyService(proxyService) {}
 
 TcpConnection::~TcpConnection() {
 	TcpConnection::gracefullyCloseRemoteSocket();
@@ -151,9 +152,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
 		resetState();
-		if (pcpp::SSLLayer::isSSLPort(dstPort)) {
-			this->doTlsRelay = true;
-		}
+		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && !this->proxyService.expired() && this->proxyService.lock()->getEnableTlsRelay();
 
 		ackNumber = packetSequenceNumber + 1;
 		// std::random_device rd;
@@ -695,4 +694,12 @@ void TcpConnection::initTlsServer(const Botan::X509_Certificate &cert) {
 			this->onTlsServerAlert(alert);
 		}
 	);
+}
+
+const std::string & TcpConnection::getServerNameIndication() {
+	return serverNameIndication;
+}
+
+const std::deque<uint8_t> & TcpConnection::getUnencryptedStream() {
+	return unencryptedStream;
 }

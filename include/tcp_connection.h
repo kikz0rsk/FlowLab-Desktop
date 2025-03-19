@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QStandardItemModel>
 #include <thread>
 
 #include "client.h"
@@ -7,6 +8,9 @@
 #include "tcp_status.h"
 #include "client_forwarder.h"
 #include "server_forwarder.h"
+
+class ProxyService;
+class ServerForwarder;
 
 class TcpConnection : public Connection {
 	protected:
@@ -26,9 +30,12 @@ class TcpConnection : public Connection {
 		bool doTlsRelay = false;
 		std::deque<uint8_t> tlsBuffer{};
 		std::string serverNameIndication{};
+		std::weak_ptr<ProxyService> proxyService;
+		std::deque<uint8_t> unencryptedStream{};
 
 	public:
 		TcpConnection(
+			std::weak_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			const pcpp::IPAddress &src_ip,
 			const pcpp::IPAddress &dst_ip,
@@ -92,4 +99,7 @@ class TcpConnection : public Connection {
 
 		void initTlsClient();
 		void initTlsServer(const Botan::X509_Certificate &cert);
+
+		const std::string& getServerNameIndication();
+		const std::deque<uint8_t>& getUnencryptedStream();
 };

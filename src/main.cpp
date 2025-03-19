@@ -1,5 +1,3 @@
-#include <client_forwarder.h>
-
 #include "mainwindow.h"
 
 #include <QApplication>

@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QStandardItemModel>
 #include <thread>
+#include <tls_page.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
 #include "connection.h"
@@ -46,6 +47,7 @@ class MainWindow : public QMainWindow
 		std::shared_ptr<DnsManager> dnsManager;
 		std::shared_ptr<ProxyService> proxyService;
 		DnsPage *dnsPage;
+		TlsPage *tlsPage;
 		ConnectionsPage *connectionsPage;
 
 		static void readExactly(SOCKET socket, char *buffer, int length);

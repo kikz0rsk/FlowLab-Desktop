@@ -58,6 +58,7 @@ set(PROJECT_SOURCES
         logswindow.ui
         dnspage.ui
         connections_page.ui
+        tls_page.ui
 
         include/connection.h
         include/remote_socket_status.h
@@ -80,6 +81,8 @@ set(PROJECT_SOURCES
         include/client.h
         src/client_forwarder.cpp
         src/server_forwarder.cpp
+        include/tls_page.h
+        src/tls_page.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -148,7 +151,7 @@ set_target_properties(network-analyzer-gui PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
-qt_add_ui(network-analyzer-gui SOURCES mainwindow.ui logswindow.ui dnspage.ui connections_page.ui)
+qt_add_ui(network-analyzer-gui SOURCES mainwindow.ui logswindow.ui dnspage.ui connections_page.ui tls_page.ui)
 
 include(GNUInstallDirs)
 install(TARGETS network-analyzer-gui

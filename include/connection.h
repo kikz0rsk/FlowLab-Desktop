@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -11,10 +12,11 @@
 
 #include "sockets.h"
 #include "client.h"
-#include "dns_manager.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "ndpi.h"
+
+class DnsManager;
 
 namespace pcpp {
 	class IPv4Layer;
