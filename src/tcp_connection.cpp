@@ -14,7 +14,8 @@
 #include <utility>
 
 #include "logger.h"
-#include "packet_utils.h"
+#include "server_forwarder.h"
+#include "client_forwarder.h"
 
 TcpConnection::TcpConnection(
 	std::weak_ptr<ProxyService> proxyService,

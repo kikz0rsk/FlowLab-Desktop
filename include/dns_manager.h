@@ -1,10 +1,11 @@
 #pragma once
 
-#include "dns_entry.h"
-
 #include <functional>
+#include <set>
 #include <vector>
 #include <pcapplusplus/DnsLayer.h>
+
+struct DnsEntry;
 
 class DnsManager {
 	public:

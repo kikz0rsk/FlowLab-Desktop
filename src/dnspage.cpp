@@ -1,7 +1,8 @@
 #include "dnspage.h"
 
-#include <qstandarditemmodel.h>
 #include "ui_dnspage.h"
+#include "dns_entry.h"
+#include "dns_manager.h"
 
 DnsPage::DnsPage(MainWindow& mainWindow, std::shared_ptr<DnsManager> dnsManager, QWidget *parent) :
 	QWidget(parent), ui(new Ui::DnsPage), mainWindow(mainWindow), dnsManager(std::move(dnsManager)) {

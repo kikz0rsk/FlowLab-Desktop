@@ -6,11 +6,10 @@
 #include "client.h"
 #include "connection.h"
 #include "tcp_status.h"
-#include "client_forwarder.h"
-#include "server_forwarder.h"
 
 class ProxyService;
 class ServerForwarder;
+class ClientForwarder;
 
 class TcpConnection : public Connection {
 	protected:

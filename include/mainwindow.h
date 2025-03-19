@@ -7,13 +7,13 @@
 #include <tls_page.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
-#include "connection.h"
-#include "dns_manager.h"
-#include "logswindow.h"
-#include "proxy_service.h"
+#include "sockets.h"
 
 class DnsPage;
 class ConnectionsPage;
+class LogsWindow;
+class ProxyService;
+class DnsManager;
 
 class QItemSelection;
 

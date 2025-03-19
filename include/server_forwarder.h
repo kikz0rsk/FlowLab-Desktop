@@ -5,7 +5,8 @@
 #include <botan/pkcs8.h>
 #include <botan/x509self.h>
 #include <botan/x509_ca.h>
-#include <proxy_service.h>
+
+#include "proxy_service.h"
 
 class ServerForwarderCredentials : public Botan::Credentials_Manager {
 	public:

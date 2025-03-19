@@ -7,6 +7,7 @@
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/UdpLayer.h>
 #include <botan/pk_algs.h>
+#include <botan/tls_session_manager_memory.h>
 #include <pcapplusplus/DnsLayer.h>
 
 #include "connection_manager.h"

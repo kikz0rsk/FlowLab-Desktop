@@ -1,5 +1,6 @@
 #include "dns_manager.h"
 
+#include "dns_entry.h"
 #include "logger.h"
 
 std::shared_ptr<DnsEntry> DnsManager::addDnsEntry(DnsEntry &&entry) {

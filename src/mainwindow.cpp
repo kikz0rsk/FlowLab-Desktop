@@ -1,5 +1,4 @@
 #include <QDebug>
-#include <array>
 #include <iostream>
 #include <utility>
 #include <pcapplusplus/SystemUtils.h>
@@ -8,14 +7,9 @@
 
 #include "connections_page.h"
 #include "./ui_mainwindow.h"
-#include "logger.h"
 #include "logswindow.h"
 #include "dnspage.h"
 #include "tls_page.h"
-#include "packet_utils.h"
-#include "tcp_connection.h"
-#include "udp_connection.h"
-#include "syntax_highlighter.h"
 
 MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *parent)	:
 	QMainWindow(parent), ui(new Ui::MainWindow), proxyService(std::move(proxyService)) {

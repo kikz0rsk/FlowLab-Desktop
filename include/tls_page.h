@@ -3,10 +3,10 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
-#include "dns_manager.h"
 #include "connection_manager.h"
 #include "ui_tls_page.h"
 
+struct DnsEntry;
 class TcpConnection;
 class MainWindow;
 

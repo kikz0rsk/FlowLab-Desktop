@@ -7,6 +7,7 @@
 #include "tcp_connection.h"
 #include "mainwindow.h"
 #include "ndpi.h"
+#include "proxy_service.h"
 
 TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::TlsPage) {

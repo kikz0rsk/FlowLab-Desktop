@@ -4,8 +4,8 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
-#include "dns_manager.h"
-
+struct DnsEntry;
+struct DnsManager;
 class MainWindow;
 
 namespace Ui {
