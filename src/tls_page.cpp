@@ -12,6 +12,7 @@
 TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::TlsPage) {
 	ui->setupUi(this);
+	this->ui->enableTlsProxyCheckbox->setCheckState(mainWindow.getProxyService()->getEnableTlsRelay() == true ? Qt::CheckState::Checked : Qt::CheckState::Unchecked);
 	connect(ui->connectionsList, &QTreeView::activated, this, &TlsPage::listView_activated);
 	connect(ui->connectionsList, &QTreeView::clicked, this, &TlsPage::listView_activated);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &TlsPage::utf8Button_clicked);
@@ -66,8 +67,6 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 		return;
 	}
 
-	ui->sentText->setText(QString::number(connection->getSentPacketCount()) + " packets (" + QString::number(connection->getSentBytes()) + " bytes)");
-	ui->receivedText->setText(QString::number(connection->getReceivedPacketCount()) + " packets (" + QString::number(connection->getReceivedBytes()) + " bytes)");
 	auto readLock = connection->getReadLock();
 	ui->sourceIpText->setText(QString::fromStdString(connection->getSrcIp().toString()));
 	ui->destinationIpText->setText(QString::fromStdString(connection->getDstIp().toString()));
@@ -85,22 +84,13 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
 	}
 
-	std::array<char, 60> buffer{};
-	ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiProtocol(), buffer.data(), buffer.size());
-	ui->protocolText->setText(QString::fromUtf8(buffer.data()));
-
-	std::unique_ptr<ndpi::ndpi_serializer> ndpiSerializer = std::make_unique<ndpi::ndpi_serializer>();
-	ndpi::ndpi_init_serializer(ndpiSerializer.get(), ndpi::ndpi_serialization_format::ndpi_serialization_format_json);
-	ndpi::ndpi_dpi2json(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiFlow().get(), connection->getNdpiProtocol(), ndpiSerializer.get());
-	std::uint32_t length{};
+	ui->handshakeStatusText->setText(QString::fromStdString(connection->getTlsRelayStatus()));
+	// std::array<char, 60> buffer{};
+	// ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiProtocol(), buffer.data(), buffer.size());
+	// ui->protocolText->setText(QString::fromUtf8(buffer.data()));
 	// char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
 	// ui->ndpiJson->setPlainText(QString::fromUtf8(buf, length));
 
-	if (auto tcpConnection = std::dynamic_pointer_cast<TcpConnection>(connection)) {
-		ui->tcpStatusText->setText(QString::fromStdString(remoteSocketStatusToString(tcpConnection->getRemoteSocketStatus())));
-	} else {
-		ui->tcpStatusText->setText("");
-	}
 }
 
 void TlsPage::addConnection(std::shared_ptr<TcpConnection> connection) {

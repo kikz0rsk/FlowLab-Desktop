@@ -29,12 +29,14 @@ ServerForwarder::ServerForwarder(
 	const Botan::X509_Certificate &origCert,
 	DataReceivedCallback dataReceivedCallback,
 	DataReadyCallback dataReadyCallback,
-	TlsAlertCallback tlsAlertCallback
+	TlsAlertCallback tlsAlertCallback,
+	SuccessCallback successCallback
 ) :
-	originalCert(origCert),
 	dataReceivedCallback(std::move(dataReceivedCallback)),
 	dataReadyCallback(std::move(dataReadyCallback)),
-	tlsAlertCallback(std::move(tlsAlertCallback)) {
+	tlsAlertCallback(std::move(tlsAlertCallback)),
+	successCallback(std::move(successCallback)),
+	originalCert(origCert) {
 	caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
 	Botan::DataSource_Stream in(R"(flowlab_ca.pkcs8)");
 	caKey = Botan::PKCS8::load_key(in);
@@ -81,7 +83,8 @@ ServerForwarder::ServerForwarder(
 	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerForwarderCallbacks>(
 		this->dataReceivedCallback,
 		this->dataReadyCallback,
-		this->tlsAlertCallback
+		this->tlsAlertCallback,
+		this->successCallback
 	);
 
 	server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
@@ -90,10 +93,12 @@ ServerForwarder::ServerForwarder(
 ServerForwarder::ServerForwarderCallbacks::ServerForwarderCallbacks(
 	DataReceivedCallback dataReceivedCallback,
 	DataReadyCallback dataReadyCallback,
-	TlsAlertCallback tlsAlertCallback
+	TlsAlertCallback tlsAlertCallback,
+	SuccessCallback successCallback
 ) : dataReceivedCallback(std::move(dataReceivedCallback)),
 		dataReadyCallback(std::move(dataReadyCallback)),
-		tlsAlertCallback(std::move(tlsAlertCallback)) {}
+		tlsAlertCallback(std::move(tlsAlertCallback)),
+		successCallback(std::move(successCallback)) {}
 
 void ServerForwarder::ServerForwarderCallbacks::tls_emit_data(std::span<const uint8_t> data) {
 	this->dataReadyCallback(data);
@@ -105,4 +110,8 @@ void ServerForwarder::ServerForwarderCallbacks::tls_record_received(uint64_t seq
 
 void ServerForwarder::ServerForwarderCallbacks::tls_alert(Botan::TLS::Alert alert) {
 	this->tlsAlertCallback(alert);
+}
+
+void ServerForwarder::ServerForwarderCallbacks::tls_session_activated() {
+	this->successCallback();
 }

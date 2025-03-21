@@ -22,7 +22,7 @@ namespace pcpp {
 	class IPv4Layer;
 }
 
-class Connection {
+class Connection : public std::enable_shared_from_this<Connection> {
 	public:
 		static constexpr unsigned int DEFAULT_MAX_SEGMENT_SIZE = 1400;
 

@@ -250,7 +250,7 @@ void ProxyService::selectLoop() {
 					int res = SocketUtils::write(client->getClientSocket(), reinterpret_cast<char *>(data.data()), data.size());
 					if (res != SOCKET_ERROR) {
 						data.erase(data.begin(), data.begin() + res);
-						Logger::get().log("Sent " + std::to_string(res) + " bytes to client");
+						// Logger::get().log("Sent " + std::to_string(res) + " bytes to client");
 					}
 				}
 			}
@@ -299,7 +299,7 @@ void ProxyService::readTlsData(std::shared_ptr<Client> client) {
 		}
 		throw SocketUtils::SocketError(error);
 	}
-	Logger::get().log("Received " + std::to_string(bytesRead) + " TLS bytes from client");
+	// Logger::get().log("Received " + std::to_string(bytesRead) + " TLS bytes from client");
 	server->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), bytesRead));
 }
 

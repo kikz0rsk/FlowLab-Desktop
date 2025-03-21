@@ -40,12 +40,14 @@ class ServerForwarder {
 		using DataReceivedCallback = std::function<void (uint64_t seq_no, std::span<const uint8_t> data)>;
 		using DataReadyCallback = std::function<void (std::span<const uint8_t> data)>;
 		using TlsAlertCallback = std::function<void (Botan::TLS::Alert alert)>;
+		using SuccessCallback = std::function<void ()>;
 
 	protected:
 		std::shared_ptr<Botan::TLS::Server> server;
 		DataReceivedCallback dataReceivedCallback;
 		DataReadyCallback dataReadyCallback;
 		TlsAlertCallback tlsAlertCallback;
+		SuccessCallback successCallback;
 		Botan::X509_Certificate generatedCert;
 		Botan::X509_Certificate originalCert;
 		std::shared_ptr<Botan::Private_Key> generatedKey;
@@ -58,7 +60,8 @@ class ServerForwarder {
 			const Botan::X509_Certificate& origCert,
 			DataReceivedCallback dataReceivedCallback,
 			DataReadyCallback dataReadyCallback,
-			TlsAlertCallback tlsAlertCallback
+			TlsAlertCallback tlsAlertCallback,
+			SuccessCallback successCallback
 		);
 
 		class ServerForwarderCallbacks : public Botan::TLS::Callbacks {
@@ -66,12 +69,14 @@ class ServerForwarder {
 				DataReceivedCallback dataReceivedCallback;
 				DataReadyCallback dataReadyCallback;
 				TlsAlertCallback tlsAlertCallback;
+				SuccessCallback successCallback;
 
 			public:
 				explicit ServerForwarderCallbacks(
 					DataReceivedCallback dataReceivedCallback,
 					DataReadyCallback dataReadyCallback,
-					TlsAlertCallback tlsAlertCallback
+					TlsAlertCallback tlsAlertCallback,
+					SuccessCallback successCallback
 				);
 
 				void tls_emit_data(std::span<const uint8_t> data) override;
@@ -79,6 +84,8 @@ class ServerForwarder {
 				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override;
 
 				void tls_alert(Botan::TLS::Alert alert) override;
+
+				void tls_session_activated() override;
 		};
 
 		[[nodiscard]] std::shared_ptr<Botan::TLS::Server>& getServer() {

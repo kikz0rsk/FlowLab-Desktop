@@ -16,6 +16,7 @@
 #include "logger.h"
 #include "server_forwarder.h"
 #include "client_forwarder.h"
+#include "connection_manager.h"
 
 TcpConnection::TcpConnection(
 	std::weak_ptr<ProxyService> proxyService,
@@ -48,6 +49,8 @@ void TcpConnection::resetState() {
 	hasCertificate = false;
 	doTlsRelay = false;
 	serverNameIndication.clear();
+	tlsBuffer.clear();
+	tlsRelayStatus = "Unknown";
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
 }
@@ -241,6 +244,9 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 				}
 				this->tlsBuffer.insert(this->tlsBuffer.end(), span.begin(), span.end());
 				initTlsClient();
+				if (auto proxyService = this->proxyService.lock()) {
+					proxyService->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
+				}
 			} else {
 				if (!this->tlsBuffer.empty()) {
 					std::vector data(this->tlsBuffer.begin(), this->tlsBuffer.end());
@@ -577,6 +583,9 @@ std::atomic_uint32_t & TcpConnection::getOurSequenceNumber() {
 }
 
 void TcpConnection::sendRst() {
+	if (this->clientTlsForwarder) {
+		Logger::get().log("sending rst");
+	}
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
 	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
@@ -627,11 +636,13 @@ void TcpConnection::onTlsClientDataToSend(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Client] Received " + std::to_string(data.size()) + " bytes from remote");
+	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->serverTlsForwarder->getServer()->send(data);
 }
 
 void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Server] Received " + std::to_string(data.size()) + " bytes from client");
+	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->clientTlsForwarder->getClient()->send(data);
 }
 
@@ -642,11 +653,17 @@ void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
 	log(this->serverNameIndication + " TLS Server alert: " + alert.type_string());
+	if (alert.is_fatal()) {
+		tlsRelayStatus = "Device Fail: " + alert.type_string();
+	}
 	this->clientTlsForwarder->getClient()->send_alert(alert);
 }
 
 void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 	log(this->serverNameIndication + " TLS Client alert: " + alert.type_string());
+	if (alert.is_fatal()) {
+		tlsRelayStatus = "Remote Fail: " + alert.type_string();
+	}
 	if (this->serverTlsForwarder && this->serverTlsForwarder->getServer()) {
 		this->serverTlsForwarder->getServer()->send_alert(alert);
 	}
@@ -656,6 +673,7 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 	Logger::get().log("Received certificate: " + cert.to_string());
 	this->initTlsServer(cert);
 	this->hasCertificate = true;
+	tlsRelayStatus = "Received certificate";
 	if (!this->tlsBuffer.empty()) {
 		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
 		this->serverTlsForwarder->getServer()->received_data(data);
@@ -693,6 +711,9 @@ void TcpConnection::initTlsServer(const Botan::X509_Certificate &cert) {
 		},
 		[this](Botan::TLS::Alert alert) {
 			this->onTlsServerAlert(alert);
+		},
+		[this] {
+			this->onTlsServerSuccess();
 		}
 	);
 }
@@ -703,4 +724,12 @@ const std::string & TcpConnection::getServerNameIndication() {
 
 const std::deque<uint8_t> & TcpConnection::getUnencryptedStream() {
 	return unencryptedStream;
+}
+
+const std::string & TcpConnection::getTlsRelayStatus() const {
+	return tlsRelayStatus;
+}
+
+void TcpConnection::onTlsServerSuccess() {
+	this->tlsRelayStatus = "Success";
 }

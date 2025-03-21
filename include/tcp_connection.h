@@ -31,6 +31,7 @@ class TcpConnection : public Connection {
 		std::string serverNameIndication{};
 		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
+		std::string tlsRelayStatus = "Unknown";
 
 	public:
 		TcpConnection(
@@ -95,10 +96,12 @@ class TcpConnection : public Connection {
 		void onTlsServerDataReceived(std::span<const uint8_t> data);
 		void onTlsServerDataToSend(std::span<const uint8_t> data);
 		void onTlsServerAlert(Botan::TLS::Alert alert);
+		void onTlsServerSuccess();
 
 		void initTlsClient();
 		void initTlsServer(const Botan::X509_Certificate &cert);
 
 		const std::string& getServerNameIndication();
 		const std::deque<uint8_t>& getUnencryptedStream();
+		const std::string& getTlsRelayStatus() const;
 };

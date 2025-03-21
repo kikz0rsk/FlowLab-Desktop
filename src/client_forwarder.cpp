@@ -71,23 +71,23 @@ void ClientForwarder::ClientForwarderCallbacks::tls_verify_cert_chain(
 		throw Botan::Invalid_Argument("Certificate chain was empty");
 	}
 
-	Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
-
-	Botan::Path_Validation_Result result = x509_path_validate(
-		cert_chain,
-		restrictions,
-		trusted_roots,
-		hostname,
-		usage,
-		tls_current_timestamp(),
-		tls_verify_cert_chain_ocsp_timeout(),
-		ocsp_responses
-	);
-
-	if (!result.successful_validation()) {
-		Logger::get().log("[TLS Proxy Client] Certificate validation failure: " + result.result_string());
-		throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
-	}
+	// Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
+	//
+	// Botan::Path_Validation_Result result = x509_path_validate(
+	// 	cert_chain,
+	// 	restrictions,
+	// 	trusted_roots,
+	// 	hostname,
+	// 	usage,
+	// 	tls_current_timestamp(),
+	// 	tls_verify_cert_chain_ocsp_timeout(),
+	// 	ocsp_responses
+	// );
+	//
+	// if (!result.successful_validation()) {
+	// 	Logger::get().log("[TLS Proxy Client] Certificate validation failure: " + result.result_string());
+	// 	throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
+	// }
 
 	this->certificateNotifyCallback(cert_chain[0]);
 }

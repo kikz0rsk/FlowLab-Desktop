@@ -33,13 +33,13 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 
 				void tls_emit_data(std::span<const uint8_t> data) override {
 					ZoneScoped;
-					Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
+					// Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
 					client.getEncryptedQueueToDevice().insert(client.getEncryptedQueueToDevice().end(), data.begin(), data.end());
 				}
 
 				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
 					ZoneScoped;
-					Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
+					// Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
 					client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
 				}
 
@@ -131,7 +131,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		ndpi::ndpi_detection_module_struct *ndpiStruct;
 		std::shared_ptr<DnsManager> dnsManager;
-		std::atomic_bool enableTlsRelay = false;
+		std::atomic_bool enableTlsRelay = true;
 
 	public:
 		ProxyService();

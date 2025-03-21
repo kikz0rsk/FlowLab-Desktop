@@ -22,7 +22,7 @@ MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *pare
 
 	ui->tabWidget->addTab(connectionsPage, "Connections");
 	ui->tabWidget->addTab(dnsPage, "DNS");
-	ui->tabWidget->addTab(dnsPage, "DNS");
+	ui->tabWidget->addTab(tlsPage, "TLS");
 
 	connect(ui->actionShow_logs, &QAction::triggered, this, &MainWindow::actionShow_logs_clicked);
 	connect(this, &MainWindow::setStatusBarMessage, this, &MainWindow::_setStatusBarMessage);
