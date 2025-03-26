@@ -13,6 +13,8 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::TlsPage) {
 	ui->setupUi(this);
 	this->ui->enableTlsProxyCheckbox->setCheckState(mainWindow.getProxyService()->getEnableTlsRelay() == true ? Qt::CheckState::Checked : Qt::CheckState::Unchecked);
+	connect(this, &TlsPage::addConnection, this, &TlsPage::onAddConnection);
+	connect(this, &TlsPage::removeConnection, this, &TlsPage::onRemoveConnection);
 	connect(ui->connectionsList, &QTreeView::activated, this, &TlsPage::listView_activated);
 	connect(ui->connectionsList, &QTreeView::clicked, this, &TlsPage::listView_activated);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &TlsPage::utf8Button_clicked);
@@ -98,7 +100,7 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 
 }
 
-void TlsPage::addConnection(std::shared_ptr<TcpConnection> connection) {
+void TlsPage::onAddConnection(std::shared_ptr<TcpConnection> connection) {
 	auto *orderNum = new QStandardItem(QString::number(connection->getOrderNum()));
 	auto *clientIp = new QStandardItem(QString::fromStdString(connection->getClient()->getClientIp().toString()));
 	clientIp->setData(QVariant::fromValue(connection));
@@ -114,7 +116,7 @@ void TlsPage::addConnection(std::shared_ptr<TcpConnection> connection) {
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, domain});
 }
 
-void TlsPage::removeConnection(std::shared_ptr<TcpConnection> connection) {
+void TlsPage::onRemoveConnection(std::shared_ptr<TcpConnection> connection) {
 	for (int i = 0; i < model.rowCount(); i++) {
 		auto index = model.index(i, 1);
 		auto conn = index.data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();

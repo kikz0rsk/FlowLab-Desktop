@@ -11,6 +11,8 @@
 ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::ConnectionsPage) {
 	ui->setupUi(this);
+	connect(this, &ConnectionsPage::addConnection, this, &ConnectionsPage::onAddConnection);
+	connect(this, &ConnectionsPage::removeConnection, this, &ConnectionsPage::onRemoveConnection);
 	connect(ui->connectionsList, &QTreeView::activated, this, &ConnectionsPage::listView_activated);
 	connect(ui->connectionsList, &QTreeView::clicked, this, &ConnectionsPage::listView_activated);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &ConnectionsPage::utf8Button_clicked);
@@ -97,7 +99,7 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 	}
 }
 
-void ConnectionsPage::addConnection(std::shared_ptr<Connection> connection) {
+void ConnectionsPage::onAddConnection(std::shared_ptr<Connection> connection) {
 	auto *orderNum = new QStandardItem(QString::number(connection->getOrderNum()));
 	auto *clientIp = new QStandardItem(QString::fromStdString(connection->getClient()->getClientIp().toString()));
 	clientIp->setData(QVariant::fromValue(connection));
@@ -109,7 +111,7 @@ void ConnectionsPage::addConnection(std::shared_ptr<Connection> connection) {
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, protocol});
 }
 
-void ConnectionsPage::removeConnection(std::shared_ptr<Connection> connection) {
+void ConnectionsPage::onRemoveConnection(std::shared_ptr<Connection> connection) {
 	for (int i = 0; i < model.rowCount(); i++) {
 		auto index = model.index(i, 1);
 		auto conn = index.data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();

@@ -22,18 +22,17 @@ class TlsPage : public QWidget
 		explicit TlsPage(MainWindow& mainWindow, QWidget *parent = nullptr);
 		~TlsPage();
 
+	signals:
 		void addConnection(std::shared_ptr<TcpConnection> connection);
 		void removeConnection(std::shared_ptr<TcpConnection> connection);
 
-	signals:
-		void addDnsEntrySignal(std::shared_ptr<DnsEntry> dns);
-
 	protected slots:
+		void onAddConnection(std::shared_ptr<TcpConnection> connection);
+		void onRemoveConnection(std::shared_ptr<TcpConnection> connection);
 		void listView_activated(const QModelIndex &index);
 		void utf8Button_clicked();
 		void utf16Button_clicked();
 		void enableTlsRelayCheckbox_clicked(Qt::CheckState state) const;
-	// TODO signals and slots for treeview
 
 	private:
 		MainWindow& mainWindow;

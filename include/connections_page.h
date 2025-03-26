@@ -21,11 +21,14 @@ class ConnectionsPage : public QWidget
 		explicit ConnectionsPage(MainWindow& mainWindow, QWidget *parent = nullptr);
 		~ConnectionsPage();
 
-		void listView_activated(const QModelIndex &index);
+	signals:
 		void addConnection(std::shared_ptr<Connection> connection);
 		void removeConnection(std::shared_ptr<Connection> connection);
 
 	protected slots:
+		void onAddConnection(std::shared_ptr<Connection> connection);
+		void onRemoveConnection(std::shared_ptr<Connection> connection);
+		void listView_activated(const QModelIndex &index);
 		void utf8Button_clicked();
 		void utf16Button_clicked();
 
