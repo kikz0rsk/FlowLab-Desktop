@@ -83,6 +83,11 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 		const auto length = buffer.size() / 2;
 		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
 	}
+	std::string domains;
+	for (const auto& domain : connection->getDomains()) {
+		domains += domain + ", ";
+	}
+	ui->domainsText->setText(QString::fromStdString(domains));
 
 	ui->handshakeStatusText->setText(QString::fromStdString(connection->getTlsRelayStatus()));
 	// std::array<char, 60> buffer{};
@@ -101,6 +106,10 @@ void TlsPage::addConnection(std::shared_ptr<TcpConnection> connection) {
 	auto *srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
 	auto *dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
 	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
+	std::string domains;
+	for (const auto& domain : connection->getDomains()) {
+		domains += domain + ", ";
+	}
 	auto *domain = new QStandardItem(QString::fromStdString(connection->getServerNameIndication()));
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, domain});
 }

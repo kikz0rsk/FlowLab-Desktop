@@ -17,6 +17,7 @@ class ClientForwarder {
 		using CertificateNotifyCallback = std::function<void (const Botan::X509_Certificate &cert)>;
 
 	protected:
+		std::vector<std::string> domains;
 		DataReceivedCallback dataReceivedCallback;
 		DataReadyCallback dataReadyCallback;
 		TlsAlertCallback tlsAlertCallback;

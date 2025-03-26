@@ -12,6 +12,7 @@
 #include <pcapplusplus/SSLLayer.h>
 #include <tracy/Tracy.hpp>
 #include <utility>
+#include <botan/x509_ext.h>
 
 #include "logger.h"
 #include "server_forwarder.h"
@@ -50,6 +51,7 @@ void TcpConnection::resetState() {
 	doTlsRelay = false;
 	serverNameIndication.clear();
 	tlsBuffer.clear();
+	domains.clear();
 	tlsRelayStatus = "Unknown";
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
@@ -238,6 +240,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 						if (const auto clientHello = sslLayer->getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
 							if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
 								serverNameIndication = sniExt->getHostName();
+								domains.insert(serverNameIndication);
 							}
 						}
 					}
@@ -674,6 +677,11 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 	this->initTlsServer(cert);
 	this->hasCertificate = true;
 	tlsRelayStatus = "Received certificate";
+	if (!cert.subject_info("X520.CommonName").empty()) {
+		domains.insert(cert.subject_info("X520.CommonName").at(0));
+	}
+	const auto& altName = cert.subject_alt_name();
+	domains.insert(altName.dn().to_string());
 	if (!this->tlsBuffer.empty()) {
 		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
 		this->serverTlsForwarder->getServer()->received_data(data);
@@ -732,4 +740,8 @@ const std::string & TcpConnection::getTlsRelayStatus() const {
 
 void TcpConnection::onTlsServerSuccess() {
 	this->tlsRelayStatus = "Success";
+}
+
+std::set<std::string> & TcpConnection::getDomains() {
+	return domains;
 }

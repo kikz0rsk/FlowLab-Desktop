@@ -28,6 +28,7 @@ class TcpConnection : public Connection {
 		bool hasCertificate = false;
 		bool doTlsRelay = false;
 		std::deque<uint8_t> tlsBuffer{};
+		std::set<std::string> domains{};
 		std::string serverNameIndication{};
 		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
@@ -104,4 +105,6 @@ class TcpConnection : public Connection {
 		const std::string& getServerNameIndication();
 		const std::deque<uint8_t>& getUnencryptedStream();
 		const std::string& getTlsRelayStatus() const;
+
+		std::set<std::string>& getDomains();
 };

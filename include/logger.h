@@ -14,13 +14,13 @@ class Logger {
 		std::set<OnLogCallback> callbacks{};
 		std::mutex mutex{};
 	public:
-		virtual ~Logger();
+		virtual ~Logger() = default;
 
 		Logger(const Logger &) = delete;
 		Logger &operator=(const Logger &) = delete;
 
 	protected:
-		Logger();
+		Logger() = default;
 
 	public:
 		static Logger& get();

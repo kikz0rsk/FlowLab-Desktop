@@ -63,7 +63,6 @@ ServerForwarder::ServerForwarder(
 	options.is_CA = false;
 	options.constraints = originalCert.constraints();
 
-	auto alternateSubjectNames = std::make_unique<Botan::Cert_Extension::Subject_Alternative_Name>();
 	auto origSubjectAlternateNames = originalCert.v3_extensions().get(Botan::OID("2.5.29.17"));
 	if (origSubjectAlternateNames) {
 		options.extensions.add(origSubjectAlternateNames->copy());

@@ -2,10 +2,6 @@
 
 #include <iostream>
 
-Logger::~Logger() = default;
-
-Logger::Logger() {}
-
 Logger & Logger::get() {
 	static Logger logger{};
 
