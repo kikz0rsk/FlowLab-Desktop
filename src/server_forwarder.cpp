@@ -78,7 +78,7 @@ ServerForwarder::ServerForwarder(
 	this->creds->generatedKey = this->generatedKey;
 
 	auto session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-	auto policy = std::make_shared<Botan::TLS::Strict_Policy>();
+	auto policy = std::make_shared<Botan::TLS::Default_Policy>();
 	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerForwarderCallbacks>(
 		this->dataReceivedCallback,
 		this->dataReadyCallback,

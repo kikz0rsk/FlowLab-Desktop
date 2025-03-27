@@ -27,12 +27,14 @@ class TcpConnection : public Connection {
 		std::shared_ptr<ClientForwarder> clientTlsForwarder{};
 		bool hasCertificate = false;
 		bool doTlsRelay = false;
-		std::deque<uint8_t> tlsBuffer{};
+
+		std::vector<uint8_t> tlsBuffer{};
 		std::set<std::string> domains{};
 		std::string serverNameIndication{};
 		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
 		std::string tlsRelayStatus = "Unknown";
+		uint16_t clientHandshakeRecordSize = 0;
 
 	public:
 		TcpConnection(

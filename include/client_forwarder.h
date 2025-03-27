@@ -69,10 +69,10 @@ class ClientForwarder {
 
 		class ClientForwarderCredentials : public Botan::Credentials_Manager {
 			protected:
-				Botan::System_Certificate_Store caCertStore;
+				Botan::System_Certificate_Store caCertStore{};
 
 			public:
-				explicit ClientForwarderCredentials();
+				explicit ClientForwarderCredentials() = default;
 
 				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
 					const std::string &type,

@@ -235,25 +235,27 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 
 		if (doTlsRelay) {
 			if (!hasCertificate) {
-				if (networkLayer->getNextLayer()->getDataLen() != 0) {
-					if (const auto sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
-						if (const auto clientHello = sslLayer->getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
-							if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
-								serverNameIndication = sniExt->getHostName();
-								domains.insert(serverNameIndication);
-							}
-						}
-					}
+				if (const auto sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
+					this->clientHandshakeRecordSize = pcpp::netToHost16(sslLayer->getRecordLayer()->length);
 				}
 				this->tlsBuffer.insert(this->tlsBuffer.end(), span.begin(), span.end());
-				initTlsClient();
-				if (auto proxyService = this->proxyService.lock()) {
-					proxyService->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
+				if (this->tlsBuffer.size() >= this->clientHandshakeRecordSize) {
+					pcpp::Packet dummyPacket;
+					pcpp::SSLHandshakeLayer sslHandshakeLayer(tlsBuffer.data(), tlsBuffer.size(), nullptr, &dummyPacket);
+					if (const auto clientHello = sslHandshakeLayer.getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
+						if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
+							serverNameIndication = sniExt->getHostName();
+							domains.insert(serverNameIndication);
+						}
+					}
+					initTlsClient();
+					if (auto proxyService = this->proxyService.lock()) {
+						proxyService->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
+					}
 				}
 			} else {
 				if (!this->tlsBuffer.empty()) {
-					std::vector data(this->tlsBuffer.begin(), this->tlsBuffer.end());
-					this->serverTlsForwarder->getServer()->received_data(std::span(data.begin(), data.end()));
+					this->serverTlsForwarder->getServer()->received_data(std::span(this->tlsBuffer.begin(), this->tlsBuffer.end()));
 					this->tlsBuffer.clear();
 				}
 				this->serverTlsForwarder->getServer()->received_data(span);
@@ -499,7 +501,7 @@ std::vector<uint8_t> TcpConnection::read() {
 	}
 	receivedBytes += length;
 
-	if (doTlsRelay) {
+	if (doTlsRelay && this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
 		this->clientTlsForwarder->getClient()->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), length));
 
 		return {};

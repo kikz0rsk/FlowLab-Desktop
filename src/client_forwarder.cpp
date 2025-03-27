@@ -20,7 +20,7 @@ ClientForwarder::ClientForwarder(
 	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
 	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
 	std::shared_ptr<ClientForwarderCredentials> creds = std::make_shared<ClientForwarderCredentials>();
-	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
+	std::shared_ptr<Botan::TLS::Policy> policy = std::make_shared<Botan::TLS::Default_Policy>();
 	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ClientForwarderCallbacks>(
 		this->dataReceivedCallback,
 		this->dataReadyCallback,
@@ -91,8 +91,6 @@ void ClientForwarder::ClientForwarderCallbacks::tls_verify_cert_chain(
 
 	this->certificateNotifyCallback(cert_chain[0]);
 }
-
-ClientForwarder::ClientForwarderCredentials::ClientForwarderCredentials() = default;
 
 std::vector<Botan::Certificate_Store *> ClientForwarder::ClientForwarderCredentials::trusted_certificate_authorities(const std::string &type, const std::string &context) {
 	return {&caCertStore};
