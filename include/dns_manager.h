@@ -3,6 +3,7 @@
 #include <functional>
 #include <set>
 #include <vector>
+#include <boost/signals2.hpp>
 #include <pcapplusplus/DnsLayer.h>
 
 struct DnsEntry;
@@ -13,21 +14,19 @@ class DnsManager {
 
 	private:
 		std::vector<std::shared_ptr<DnsEntry>> dnsEntries{};
-		std::set<OnAddCallback> callbacks{};
+		boost::signals2::signal<void (std::shared_ptr<DnsEntry>)> onAddSignal;
 		std::mutex mutex{};
 
 	public:
 		DnsManager() = default;
 
+		[[nodiscard]] boost::signals2::signal<void(std::shared_ptr<DnsEntry>)>& getOnAddSignal();
+
 		void processDns(const pcpp::DnsLayer& layer);
 
-		std::shared_ptr<DnsEntry> getDnsEntry(const std::string &ip);
+		[[nodiscard]] std::shared_ptr<DnsEntry> getDnsEntry(const std::string &ip);
 
 		std::shared_ptr<DnsEntry> addDnsEntry(DnsEntry &&entry);
-
-		void registerEventCallback(const OnAddCallback &callback);
-
-		void unregisterEventCallback(OnAddCallback callback);
 
 		static std::string dnsTypeToString(pcpp::DnsType type);
 };

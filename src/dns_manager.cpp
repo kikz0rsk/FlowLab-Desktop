@@ -5,26 +5,9 @@
 
 std::shared_ptr<DnsEntry> DnsManager::addDnsEntry(DnsEntry &&entry) {
 	auto res = this->dnsEntries.emplace_back(std::make_shared<DnsEntry>(std::forward<DnsEntry>(entry)));
-	for (const auto &callback : callbacks) {
-		callback->operator()(res);
-	}
+	this->onAddSignal(res);
 
 	return res;
-}
-
-void DnsManager::registerEventCallback(const OnAddCallback &callback) {
-	std::lock_guard lock(mutex);
-	callbacks.emplace(callback);
-}
-
-void DnsManager::unregisterEventCallback(OnAddCallback callback) {
-	std::lock_guard lock(mutex);
-	for (auto it = callbacks.begin(); it != callbacks.end(); ++it) {
-		if (*it == callback) {
-			callbacks.erase(it);
-			break;
-		}
-	}
 }
 
 std::string DnsManager::dnsTypeToString(pcpp::DnsType type) {
@@ -50,6 +33,10 @@ std::string DnsManager::dnsTypeToString(pcpp::DnsType type) {
 		default:
 			return "OTHER";
 	}
+}
+
+boost::signals2::signal<void(std::shared_ptr<DnsEntry>)> & DnsManager::getOnAddSignal() {
+	return onAddSignal;
 }
 
 void DnsManager::processDns(const pcpp::DnsLayer& layer) {

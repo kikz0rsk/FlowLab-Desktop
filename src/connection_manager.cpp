@@ -17,9 +17,7 @@ void ConnectionManager::addConnection(const std::shared_ptr<Connection> &connect
 		)
 	] = connection;
 	connection->setOrderNum(orderNum++);
-	for (const auto &callback : onConnectionCallbacks) {
-		callback->operator()(true, connection);
-	}
+	this->connectionAddedSignal(true, connection);
 }
 
 std::shared_ptr<Connection> ConnectionManager::find(
@@ -63,38 +61,16 @@ void ConnectionManager::cleanUp() {
 		}
 
 		auto tcpCon = std::dynamic_pointer_cast<TcpConnection>(it->second);
-		for (const auto &callback : onConnectionCallbacks) {
-			callback->operator()(false, it->second);
-		}
+		this->connectionAddedSignal(false, it->second);
 		if (tcpCon && tlsConnections.contains(tcpCon)) {
-			for (const auto &callback : onTlsConnectionCallbacks) {
-				callback->operator()(false, tcpCon);
-			}
+			this->tlsConnectionAddedSignal(false, tcpCon);
 			tlsConnections.erase(tcpCon);
 		}
 		it = connections.erase(it);
 	}
 }
 
-void ConnectionManager::registerConnectionCallback(const OnConnectionCallback &callback) {
-	onConnectionCallbacks.emplace(callback);
-}
-
-void ConnectionManager::unregisterConnectionCallback(OnConnectionCallback callback) {
-	onConnectionCallbacks.erase(callback);
-}
-
-void ConnectionManager::registerTlsConnectionCallback(const OnTlsConnectionCallback &callback) {
-	onTlsConnectionCallbacks.emplace(callback);
-}
-
-void ConnectionManager::unregisterTlsConnectionCallback(OnTlsConnectionCallback callback) {
-	onTlsConnectionCallbacks.erase(callback);
-}
-
 void ConnectionManager::markAsTlsConnection(std::shared_ptr<TcpConnection> connection) {
 	tlsConnections.insert(connection);
-	for (const auto &callback : onTlsConnectionCallbacks) {
-		callback->operator()(true, connection);
-	}
+	this->tlsConnectionAddedSignal(true, connection);
 }

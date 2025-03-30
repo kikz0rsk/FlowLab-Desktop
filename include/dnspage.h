@@ -3,6 +3,7 @@
 
 #include <QStandardItemModel>
 #include <QWidget>
+#include <boost/signals2.hpp>
 
 struct DnsEntry;
 struct DnsManager;
@@ -32,7 +33,7 @@ class DnsPage : public QWidget
 		MainWindow& mainWindow;
 		std::shared_ptr<DnsManager> dnsManager;
 		QStandardItemModel *model;
-		std::shared_ptr<std::function<void (std::shared_ptr<DnsEntry>)>> addDnsCallback;
+		boost::signals2::connection addDnsSignalConnection;
 };
 
 #endif// DNSPAGE_H

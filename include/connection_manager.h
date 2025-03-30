@@ -4,6 +4,8 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
+
+#include <boost/signals2.hpp>
 #include <pcapplusplus/IpAddress.h>
 
 #include "protocol.h"
@@ -12,17 +14,13 @@ class Connection;
 class TcpConnection;
 
 class ConnectionManager {
-	public:
-		using OnConnectionCallback = std::shared_ptr<std::function<void (bool, std::shared_ptr<Connection>)>>;
-		using OnTlsConnectionCallback = std::shared_ptr<std::function<void (bool, std::shared_ptr<TcpConnection>)>>;
-
 	protected:
 		unsigned long long orderNum = 0;
 		int maxConnections = 1000;
 		std::unordered_map<std::string, std::shared_ptr<Connection>> connections{};
 		std::set<std::shared_ptr<TcpConnection>> tlsConnections{};
-		std::set<OnConnectionCallback> onConnectionCallbacks{};
-		std::set<OnTlsConnectionCallback> onTlsConnectionCallbacks{};
+		boost::signals2::signal<void (bool, std::shared_ptr<Connection>)> connectionAddedSignal;
+		boost::signals2::signal<void (bool, std::shared_ptr<TcpConnection>)> tlsConnectionAddedSignal;
 
 	public:
 		void addConnection(const std::shared_ptr<Connection>& connection);
@@ -38,10 +36,14 @@ class ConnectionManager {
 
 		[[nodiscard]] std::unordered_map<std::string, std::shared_ptr<Connection>>& getConnections();
 
-		void registerConnectionCallback(const OnConnectionCallback &callback);
-		void unregisterConnectionCallback(OnConnectionCallback callback);
-		void registerTlsConnectionCallback(const OnTlsConnectionCallback &callback);
-		void unregisterTlsConnectionCallback(OnTlsConnectionCallback callback);
+		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<Connection>)>& getConnectionAddedSignal() {
+			return connectionAddedSignal;
+		}
+
+		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<TcpConnection>)>& getTlsConnectionAddedSignal() {
+			return tlsConnectionAddedSignal;
+		}
+
 		void markAsTlsConnection(std::shared_ptr<TcpConnection> connection);
 
 	protected:

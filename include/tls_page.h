@@ -39,5 +39,5 @@ class TlsPage : public QWidget
 		Ui::TlsPage *ui;
 		QStandardItemModel model;
 		int showMode = 0;
-		ConnectionManager::OnTlsConnectionCallback onTlsConnectionCallback;
+		boost::signals2::connection onTlsConnectionSignalConnection;
 };

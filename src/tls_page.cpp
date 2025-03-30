@@ -24,21 +24,21 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "Domain"});
 	ui->connectionsList->setModel(&model);
-	onTlsConnectionCallback = std::make_shared<std::function<void (bool, std::shared_ptr<TcpConnection>)>>(
-		[this](bool added, std::shared_ptr<TcpConnection> connection) {
-			if (added) {
-				addConnection(std::move(connection));
-			} else {
-				removeConnection(std::move(connection));
+	this->onTlsConnectionSignalConnection =
+		mainWindow.getProxyService()->getConnectionManager()->getTlsConnectionAddedSignal().connect(
+			[this](bool added, std::shared_ptr<TcpConnection> connection) {
+				if (added) {
+					addConnection(std::move(connection));
+				} else {
+					removeConnection(std::move(connection));
+				}
 			}
-		}
-	);
-	mainWindow.getProxyService()->getConnectionManager()->registerTlsConnectionCallback(onTlsConnectionCallback);
+		);
 }
 
 TlsPage::~TlsPage() {
+	this->onTlsConnectionSignalConnection.disconnect();
 	delete ui;
-	mainWindow.getProxyService()->getConnectionManager()->unregisterTlsConnectionCallback(onTlsConnectionCallback);
 }
 
 void TlsPage::utf8Button_clicked() {

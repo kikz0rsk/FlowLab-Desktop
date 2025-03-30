@@ -37,7 +37,7 @@ class ConnectionsPage : public QWidget
 		Ui::ConnectionsPage *ui;
 		QStandardItemModel model;
 		int showMode = 0;
-		ConnectionManager::OnConnectionCallback onConnectionCallback;
+		boost::signals2::connection onConnectionSignalConnection;
 };
 
 #endif// CONNECTIONS_H

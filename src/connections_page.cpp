@@ -21,21 +21,21 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "L4 Protocol"});
 	ui->connectionsList->setModel(&model);
-	onConnectionCallback = std::make_shared<std::function<void (bool, std::shared_ptr<Connection>)>>(
-		[this](bool added, std::shared_ptr<Connection> connection) {
-			if (added) {
-				addConnection(std::move(connection));
-			} else {
-				removeConnection(std::move(connection));
+	this->onConnectionSignalConnection =
+		mainWindow.getProxyService()->getConnectionManager()->getConnectionAddedSignal().connect(
+			[this](bool added, std::shared_ptr<Connection> connection) {
+				if (added) {
+					addConnection(std::move(connection));
+				} else {
+					removeConnection(std::move(connection));
+				}
 			}
-		}
-	);
-	mainWindow.getProxyService()->getConnectionManager()->registerConnectionCallback(onConnectionCallback);
+		);
 }
 
 ConnectionsPage::~ConnectionsPage() {
+	this->onConnectionSignalConnection.disconnect();
 	delete ui;
-	mainWindow.getProxyService()->getConnectionManager()->unregisterConnectionCallback(onConnectionCallback);
 }
 
 void ConnectionsPage::utf8Button_clicked() {

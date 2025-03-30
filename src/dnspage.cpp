@@ -7,22 +7,22 @@
 DnsPage::DnsPage(MainWindow& mainWindow, std::shared_ptr<DnsManager> dnsManager, QWidget *parent) :
 	QWidget(parent), ui(new Ui::DnsPage), mainWindow(mainWindow), dnsManager(std::move(dnsManager)) {
 	ui->setupUi(this);
-	addDnsCallback = std::make_shared<std::function<void (std::shared_ptr<DnsEntry>)>>(
-		[this] (std::shared_ptr<DnsEntry> dns) {
-			addDnsEntrySignal(std::move(dns));
-		}
-	);
 	connect(this, &DnsPage::addDnsEntrySignal, this, &DnsPage::addDnsToTable);
 	connect(ui->dnsList, &QTreeView::clicked, this, &DnsPage::changeSelectedEntry);
 	model = new QStandardItemModel(0, 1, this);
 	model->setHorizontalHeaderLabels({"Domain"});
 	this->ui->dnsList->setModel(model);
-	this->dnsManager->registerEventCallback(addDnsCallback);
+	this->addDnsSignalConnection =
+		this->dnsManager->getOnAddSignal().connect(
+			[this] (std::shared_ptr<DnsEntry> dns) {
+				addDnsEntrySignal(std::move(dns));
+			}
+		);
 }
 
 DnsPage::~DnsPage() {
+	this->addDnsSignalConnection.disconnect();
 	delete ui;
-	dnsManager->unregisterEventCallback(addDnsCallback);
 }
 
 void DnsPage::addDnsToTable(std::shared_ptr<DnsEntry> dns) {
