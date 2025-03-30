@@ -71,7 +71,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 			ndpi::ndpi_detection_module_struct *ndpiStruct
 		);
 
-		virtual ~Connection();
+		virtual ~Connection() = default;
 
 		virtual void processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
 

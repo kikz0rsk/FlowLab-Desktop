@@ -25,15 +25,13 @@ Connection::Connection(
 	dstPort(dst_port),
 	protocol(protocol),
 	ndpiStr(ndpiStruct),
-	client(client) {
+	client(std::move(client)) {
 
 	ndpiFlow = std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>>(
 		new ndpi::ndpi_flow_struct{},
 		ndpi::ndpi_free_flow
 	);
 }
-
-Connection::~Connection() {}
 
 void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
