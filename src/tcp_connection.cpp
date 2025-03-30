@@ -331,6 +331,7 @@ void TcpConnection::openSocket() {
 		std::cerr << "socket() failed: " << getLastSocketError() << std::endl;
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
+		setTcpStatus(TcpStatus::CLOSED);
 
 		return;
 	}
@@ -354,6 +355,7 @@ void TcpConnection::openSocket() {
 		std::cerr << "bind() failed: " << getLastSocketError() << std::endl;
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
+		setTcpStatus(TcpStatus::CLOSED);
 
 		return;
 	}
@@ -399,9 +401,10 @@ void TcpConnection::openSocket() {
 			return;
 		}
 
-		std::cerr << "connect() failed: " << errCode << std::endl;
+		Logger::get().log("connect() failed: " + std::to_string(errCode));
 		sendRst();
 		gracefullyCloseRemoteSocket();
+		setTcpStatus(TcpStatus::CLOSED);
 	} else {
 		Logger::get().log("Connected to remote socket");
 	}
@@ -461,7 +464,7 @@ std::vector<uint8_t> TcpConnection::read() {
 			return {};
 		}
 
-		log("recv() failed: " + error);
+		log("recv() failed: " + std::to_string(error));
 		gracefullyCloseRemoteSocket();
 		sendRst();
 		setTcpStatus(TcpStatus::CLOSED);
@@ -588,9 +591,6 @@ std::atomic_uint32_t & TcpConnection::getOurSequenceNumber() {
 }
 
 void TcpConnection::sendRst() {
-	if (this->clientTlsForwarder) {
-		Logger::get().log("sending rst");
-	}
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
 	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
