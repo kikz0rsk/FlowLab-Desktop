@@ -2,6 +2,6 @@
 
 namespace ndpi {
 	extern "C" {
-		#include <ndpi/ndpi_main.h>
+		#include "ndpi/ndpi_main.h"
 	}
 }
