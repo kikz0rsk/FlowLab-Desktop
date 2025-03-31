@@ -8,7 +8,7 @@
 
 
 int main(int argc, char *argv[]) {
-#ifdef _POSIX
+#ifdef linux
 	signal(SIGPIPE, SIG_IGN);
 #endif
 	TracyNoop;
