@@ -35,10 +35,16 @@ ProxyService::ProxyService() {
 	if (ndpiStruct == nullptr) {
 		throw std::runtime_error("Failed to initialize nDPI");
 	}
-	ndpi::ndpi_protocol_bitmask_struct_t all;
+	ndpi::ndpi_protocol_bitmask_struct_t all{};
 	NDPI_BITMASK_SET_ALL(all);
-	ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
-	ndpi::ndpi_finalize_initialization(ndpiStruct);
+	res = ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
+	if (res != 0) {
+		throw std::runtime_error("Failed to set protocol detection bitmask");
+	}
+	res = ndpi::ndpi_finalize_initialization(ndpiStruct);
+	if (res != 0) {
+		throw std::runtime_error("Failed to finalize nDPI initialization");
+	}
 }
 
 ProxyService::~ProxyService() {
