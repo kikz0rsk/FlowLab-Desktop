@@ -154,7 +154,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 
 		[[nodiscard]] std::shared_ptr<pcpp::PcapNgFileWriterDevice> getPcapWriter() const;
 
-		[[nodiscard]] ndpi::ndpi_detection_module_struct *getNdpiStruct() const;
+		[[nodiscard]] ndpi::ndpi_detection_module_struct *getNdpiStruct();
 
 		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& getDeviceConnectionSignal();
 

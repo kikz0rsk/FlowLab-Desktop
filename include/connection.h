@@ -55,7 +55,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
 		std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>> ndpiFlow = nullptr;
-		ndpi::ndpi_protocol ndpiProtocol{};
+		std::optional<ndpi::ndpi_protocol> ndpiProtocol{};
 		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::shared_ptr<Client> client;
@@ -131,7 +131,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
 
-		[[nodiscard]] ndpi::ndpi_protocol getNdpiProtocol() const;
+		[[nodiscard]] std::optional<ndpi::ndpi_protocol> getNdpiProtocol() const;
 
 		void setPcapWriter(const std::shared_ptr<pcpp::PcapNgFileWriterDevice> &pcapWriter);
 

@@ -110,7 +110,7 @@ std::shared_ptr<pcpp::PcapNgFileWriterDevice> ProxyService::getPcapWriter() cons
 	return pcapWriter;
 }
 
-ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() const {
+ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() {
 	return ndpiStruct;
 }
 

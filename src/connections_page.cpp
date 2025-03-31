@@ -82,15 +82,20 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 	}
 
 	std::vector<char> buffer(60);
-	ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiProtocol(), buffer.data(), buffer.size());
-	ui->protocolText->setText(QString::fromUtf8(buffer.data()));
+	if (connection->getNdpiProtocol().has_value()) {
+		ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), *connection->getNdpiProtocol(), buffer.data(), buffer.size());
+		ui->protocolText->setText(QString::fromUtf8(buffer.data()));
 
-	std::unique_ptr<ndpi::ndpi_serializer> ndpiSerializer = std::make_unique<ndpi::ndpi_serializer>();
-	ndpi::ndpi_init_serializer(ndpiSerializer.get(), ndpi::ndpi_serialization_format::ndpi_serialization_format_json);
-	ndpi::ndpi_dpi2json(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiFlow().get(), connection->getNdpiProtocol(), ndpiSerializer.get());
-	std::uint32_t length{};
-	char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
-	ui->ndpiJson->setPlainText(QString::fromUtf8(buf, length));
+		std::unique_ptr<ndpi::ndpi_serializer> ndpiSerializer = std::make_unique<ndpi::ndpi_serializer>();
+		ndpi::ndpi_init_serializer(ndpiSerializer.get(), ndpi::ndpi_serialization_format::ndpi_serialization_format_json);
+		ndpi::ndpi_dpi2json(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiFlow().get(), *connection->getNdpiProtocol(), ndpiSerializer.get());
+		std::uint32_t length{};
+		char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
+		ui->ndpiJson->setPlainText(QString::fromUtf8(buf, length));
+	} else {
+		ui->ndpiJson->clear();
+		ui->protocolText->setText("Unknown");
+	}
 
 	if (auto tcpConnection = std::dynamic_pointer_cast<TcpConnection>(connection)) {
 		ui->tcpStatusText->setText(QString::fromStdString(remoteSocketStatusToString(tcpConnection->getRemoteSocketStatus())));

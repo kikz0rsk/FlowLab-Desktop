@@ -148,7 +148,7 @@ const sockaddr_in & Connection::getDestSockAddr() const {
 	return originSockAddr;
 }
 
-ndpi::ndpi_protocol Connection::getNdpiProtocol() const {
+std::optional<ndpi::ndpi_protocol> Connection::getNdpiProtocol() const {
 	return ndpiProtocol;
 }
 
