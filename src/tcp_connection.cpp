@@ -658,15 +658,21 @@ void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
 	log(this->serverNameIndication + " TLS Server alert: " + alert.type_string());
-	tlsRelayStatus = "Device Fail: " + alert.type_string();
-	// this->clientTlsForwarder->getClient()->send_alert(alert);
+	if (alert.is_fatal()) {
+		tlsRelayStatus = "Device Fail: " + alert.type_string();
+	}
+	if (this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
+		this->clientTlsForwarder->getClient()->send_alert(alert);
+	}
 }
 
 void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
 	log(this->serverNameIndication + " TLS Client alert: " + alert.type_string());
-	tlsRelayStatus = "Remote Fail: " + alert.type_string();
+	if (alert.is_fatal()) {
+		tlsRelayStatus = "Remote Fail: " + alert.type_string();
+	}
 	if (this->serverTlsForwarder && this->serverTlsForwarder->getServer()) {
-		// this->serverTlsForwarder->getServer()->send_alert(alert);
+		this->serverTlsForwarder->getServer()->send_alert(alert);
 	}
 }
 
