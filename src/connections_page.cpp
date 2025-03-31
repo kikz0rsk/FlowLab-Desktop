@@ -81,7 +81,7 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
 	}
 
-	std::array<char, 60> buffer{};
+	std::vector<char> buffer(60);
 	ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiProtocol(), buffer.data(), buffer.size());
 	ui->protocolText->setText(QString::fromUtf8(buffer.data()));
 
