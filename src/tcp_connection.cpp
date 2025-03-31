@@ -385,7 +385,7 @@ void TcpConnection::openSocket() {
 
 	if (res == SOCKET_ERROR) {
 		const auto errCode = getLastSocketError();
-		if (errCode == WSAEWOULDBLOCK) {
+		if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
 			return;
 		}
 		if (errCode == WSAEISCONN) {

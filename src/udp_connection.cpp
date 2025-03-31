@@ -107,6 +107,10 @@ void UdpConnection::openSocket() {
 	}
 
 	if (res == SOCKET_ERROR) {
+		const auto error = getLastSocketError();
+		if (error == WSAEWOULDBLOCK || error == WSAEINPROGRESS) {
+			return;
+		}
 		log("connect() failed: " + std::to_string(getLastSocketError()));
 		gracefullyCloseRemoteSocket();
 
