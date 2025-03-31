@@ -2,6 +2,7 @@
 #include <iostream>
 #include <utility>
 #include <pcapplusplus/SystemUtils.h>
+#include <QMessageBox>
 
 #include "mainwindow.h"
 
@@ -23,12 +24,19 @@ MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *pare
 	ui->tabWidget->addTab(connectionsPage, "Connections");
 	ui->tabWidget->addTab(dnsPage, "DNS");
 	ui->tabWidget->addTab(tlsPage, "TLS");
-
+	ui->statusBar->showMessage("Ready");
 	connect(ui->actionShow_logs, &QAction::triggered, this, &MainWindow::actionShow_logs_clicked);
 	connect(this, &MainWindow::setStatusBarMessage, this, &MainWindow::_setStatusBarMessage);
+
+	this->deviceConnectionSlot = this->proxyService->getDeviceConnectionSignal().connect(
+		[this](bool, std::shared_ptr<Client>, unsigned int numClients) {
+			this->setStatusBarMessage(std::format("{} devices connected", numClients));
+		}
+	);
 }
 
 MainWindow::~MainWindow() {
+	deviceConnectionSlot.disconnect();
 	delete ui;
 }
 
@@ -45,6 +53,22 @@ void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
 			throw std::runtime_error("recv() failed: " + std::to_string(getLastSocketError()));
 		}
 		currOffset += bytesRead;
+	}
+}
+
+void MainWindow::showEvent(QShowEvent *event) {
+	QMainWindow::showEvent(event);
+	try {
+		this->proxyService->start();
+	} catch (std::exception&) {
+		this->errorMessage = std::make_unique<QMessageBox>(this);
+		errorMessage->setWindowTitle("Error");
+		errorMessage->setText("Failed to start proxy service. Check if the port is already in use or certificate files are missing.");
+		errorMessage->setIcon(QMessageBox::Critical);
+		errorMessage->setStandardButtons(QMessageBox::Ok);
+		errorMessage->setDefaultButton(QMessageBox::Ok);
+		errorMessage->setVisible(true);
+		setStatusBarMessage("Error starting proxy service");
 	}
 }
 

@@ -3,6 +3,7 @@
 #include <memory>
 #include <thread>
 #include <list>
+#include <boost/signals2/signal.hpp>
 #include <botan/auto_rng.h>
 #include <botan/certstor.h>
 #include <botan/pk_keys.h>
@@ -82,17 +83,20 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		class ServerCredentials : public Botan::Credentials_Manager {
 			protected:
 				Botan::Certificate_Store_In_Memory caCertStore;
-				Botan::X509_Certificate serverCert;
-				Botan::X509_Certificate caCert;
+				std::shared_ptr<Botan::X509_Certificate> serverCert;
+				std::shared_ptr<Botan::X509_Certificate> caCert;
 				std::shared_ptr<Botan::Private_Key> serverKey;
 
 			public:
-				explicit ServerCredentials() {
-					serverCert = Botan::X509_Certificate(R"(flowlab_server_flowlab_ca.cer)");
-					caCert = Botan::X509_Certificate(R"(flowlab_ca.cer)");
-					Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");
-					serverKey.reset(Botan::PKCS8::load_key(in).release());
-					caCertStore.add_certificate(caCert);
+				explicit ServerCredentials(
+					std::shared_ptr<Botan::X509_Certificate> serverCert,
+					std::shared_ptr<Botan::X509_Certificate> caCert,
+					std::shared_ptr<Botan::Private_Key> serverKey
+				) :
+					serverCert(std::move(serverCert)),
+					caCert(std::move(caCert)),
+					serverKey(std::move(serverKey)) {
+					caCertStore.add_certificate(*this->caCert);
 				}
 
 				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
@@ -108,7 +112,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 					const std::string& type,
 					const std::string& context
 				) override {
-					return {serverCert, caCert};
+					return {*serverCert, *caCert};
 				}
 
 				std::shared_ptr<Botan::Private_Key> private_key_for(
@@ -132,6 +136,10 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		ndpi::ndpi_detection_module_struct *ndpiStruct;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::atomic_bool enableTlsRelay = true;
+		boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)> deviceConnectionSignal;
+		std::shared_ptr<Botan::X509_Certificate> serverCert;
+		std::shared_ptr<Botan::X509_Certificate> caCert;
+		std::shared_ptr<Botan::Private_Key> serverKey;
 
 	public:
 		ProxyService();
@@ -147,6 +155,8 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		[[nodiscard]] std::shared_ptr<pcpp::PcapNgFileWriterDevice> getPcapWriter() const;
 
 		[[nodiscard]] ndpi::ndpi_detection_module_struct *getNdpiStruct() const;
+
+		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& getDeviceConnectionSignal();
 
 	protected:
 		void threadRoutine();

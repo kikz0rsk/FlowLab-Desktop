@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMessageBox>
 #include <QStandardItemModel>
 #include <thread>
 #include <tls_page.h>
@@ -49,6 +50,8 @@ class MainWindow : public QMainWindow
 		DnsPage *dnsPage;
 		TlsPage *tlsPage;
 		ConnectionsPage *connectionsPage;
+		boost::signals2::connection deviceConnectionSlot;
+		std::unique_ptr<QMessageBox> errorMessage;
 
 		static void readExactly(SOCKET socket, char *buffer, int length);
 
@@ -68,5 +71,7 @@ class MainWindow : public QMainWindow
 		[[nodiscard]] ConnectionsPage * getConnectionsPage() const {
 			return connectionsPage;
 		}
+
+		void showEvent(QShowEvent *event) override;
 };
 #endif// MAINWINDOW_H

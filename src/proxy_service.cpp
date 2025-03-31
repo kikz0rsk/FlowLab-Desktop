@@ -48,6 +48,11 @@ ProxyService::~ProxyService() {
 }
 
 void ProxyService::start() {
+	serverCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_server_flowlab_ca.cer)");
+	caCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_ca.cer)");
+	Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");
+	serverKey.reset(Botan::PKCS8::load_key(in).release());
+
 	Botan::AutoSeeded_RNG rng{};
 	Logger::get().log("Generating RSA key pair for TLS proxy");
 	tlsProxyKey = Botan::create_private_key("RSA", rng, "2048");
@@ -101,6 +106,10 @@ std::shared_ptr<pcpp::PcapNgFileWriterDevice> ProxyService::getPcapWriter() cons
 
 ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() const {
 	return ndpiStruct;
+}
+
+boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& ProxyService::getDeviceConnectionSignal() {
+	return deviceConnectionSignal;
 }
 
 void ProxyService::threadRoutine() {
@@ -182,14 +191,15 @@ void ProxyService::acceptClient6() {
 		port = ntohs(addr->sin6_port);
 	}
 
-	auto& client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
+	auto client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
 	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
 	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>();
+	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>(this->serverCert, this->caCert, this->serverKey);
 	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
 	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
 	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
 	client->setTlsServer(server);
+	this->deviceConnectionSignal(true, client, this->clients.size());
 	Logger::get().log("Accepted client from " + clientIp.toString());
 }
 
@@ -468,6 +478,7 @@ void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
 			conn.second->forcefullyCloseAll();
 		}
 	}
+	this->deviceConnectionSignal(false, client, this->clients.empty() ? 0 : this->clients.size() - 1);
 }
 
 void ProxyService::setEnableTlsRelay(bool enable) {
