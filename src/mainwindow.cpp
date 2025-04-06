@@ -59,7 +59,7 @@ void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
 void MainWindow::showEvent(QShowEvent *event) {
 	QMainWindow::showEvent(event);
 
-	if (this->proxyService) {
+	if (this->proxyService->isRunning()) {
 		return;
 	}
 

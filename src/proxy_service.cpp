@@ -54,6 +54,7 @@ ProxyService::~ProxyService() {
 }
 
 void ProxyService::start() {
+	running = true;
 	serverCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_server_flowlab_ca.cer)");
 	caCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_ca.cer)");
 	Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");
@@ -85,6 +86,7 @@ void ProxyService::start() {
 }
 
 void ProxyService::stop() {
+	running = false;
 	stopFlag = true;
 	closeSocket(serverSocket6);
 	if (thread.joinable()) {
@@ -116,6 +118,10 @@ ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() {
 
 boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& ProxyService::getDeviceConnectionSignal() {
 	return deviceConnectionSignal;
+}
+
+bool ProxyService::isRunning() const {
+	return running.load();
 }
 
 void ProxyService::threadRoutine() {

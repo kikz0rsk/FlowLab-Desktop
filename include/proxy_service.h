@@ -131,6 +131,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		std::thread thread;
 		SOCKET serverSocket6{};
 		std::atomic_bool stopFlag = false;
+		std::atomic_bool running = false;
 		std::shared_ptr<ConnectionManager> connections;
 		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
 		ndpi::ndpi_detection_module_struct *ndpiStruct;
@@ -157,6 +158,8 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		[[nodiscard]] ndpi::ndpi_detection_module_struct *getNdpiStruct();
 
 		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& getDeviceConnectionSignal();
+
+		[[nodiscard]] bool isRunning() const;
 
 	protected:
 		void threadRoutine();
