@@ -58,6 +58,11 @@ void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
 
 void MainWindow::showEvent(QShowEvent *event) {
 	QMainWindow::showEvent(event);
+
+	if (this->proxyService) {
+		return;
+	}
+
 	try {
 		this->proxyService->start();
 	} catch (std::exception&) {
