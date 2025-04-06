@@ -44,5 +44,4 @@ void DnsPage::changeSelectedEntry(const QModelIndex &index) {
 		answers += answer + "\n";
 	}
 	ui->answersText->setText(QString::fromStdString(answers));
-	ui->countryText->setText(QString::fromStdString(dns->country));
 }
