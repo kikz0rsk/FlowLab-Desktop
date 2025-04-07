@@ -1,6 +1,7 @@
 #include "proxy_service.h"
 
 #include <iostream>
+#include <filesystem>
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/IPv6Layer.h>
 #include <pcapplusplus/SystemUtils.h>
@@ -56,6 +57,7 @@ ProxyService::~ProxyService() {
 
 void ProxyService::start() {
 	running = true;
+	std::filesystem::create_directories("tls-streams");
 	serverCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_server_flowlab_ca.cer)");
 	caCert = std::make_shared<Botan::X509_Certificate>(R"(flowlab_ca.cer)");
 	Botan::DataSource_Stream in(R"(flowlab_server_flowlab_ca.pkcs8)");

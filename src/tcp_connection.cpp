@@ -2,6 +2,8 @@
 
 #include <random>
 #include <iostream>
+#include <utility>
+#include <regex>
 
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/PacketUtils.h>
@@ -11,7 +13,6 @@
 #include <pcapplusplus/SSLHandshake.h>
 #include <pcapplusplus/SSLLayer.h>
 #include <tracy/Tracy.hpp>
-#include <utility>
 #include <botan/x509_ext.h>
 
 #include "logger.h"
@@ -246,7 +247,9 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 					if (const auto clientHello = sslHandshakeLayer.getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
 						if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
 							serverNameIndication = sniExt->getHostName();
-							domains.insert(serverNameIndication);
+							if (!serverNameIndication.empty()) {
+								domains.insert(serverNameIndication);
+							}
 						}
 					}
 					initTlsClient();
@@ -645,12 +648,28 @@ void TcpConnection::onTlsClientDataToSend(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Client] Received " + std::to_string(data.size()) + " bytes from remote");
+
+	if (this->lastTag != SERVER_TAG) {
+		const std::string tag = std::format("\n{}\n", SERVER_TAG);
+		this->unencryptedFileStream.write(tag.c_str(), tag.size());
+		this->lastTag = SERVER_TAG;
+	}
+
+	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
 	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->serverTlsForwarder->getServer()->send(data);
 }
 
 void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Server] Received " + std::to_string(data.size()) + " bytes from client");
+
+	if (this->lastTag != CLIENT_TAG) {
+		const std::string tag = std::format("\n{}\n", CLIENT_TAG);
+		this->unencryptedFileStream.write(tag.c_str(), tag.size());
+		this->lastTag = CLIENT_TAG;
+	}
+
+	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
 	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->clientTlsForwarder->getClient()->send(data);
 }
@@ -686,10 +705,28 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 	this->hasCertificate = true;
 	tlsRelayStatus = "Received certificate";
 	if (!cert.subject_info("X520.CommonName").empty()) {
-		domains.insert(cert.subject_info("X520.CommonName").at(0));
+		for (const auto& domain : cert.subject_info("X520.CommonName")) {
+			if (domain.empty()) {
+				continue;
+			}
+			domains.insert(domain);
+		}
 	}
 	const auto& altName = cert.subject_alt_name();
-	domains.insert(altName.dn().to_string());
+	if (altName.has_items() && !altName.dn().to_string().empty()) {
+		domains.insert(altName.dn().to_string());
+	}
+	std::string name = std::format(
+		"tls-streams/{}_{}_{}.bin",
+		this->client->getClientIp().toString(),
+		srcPort,
+		domains.empty() ? this->dstIp.toString() : std::string(*domains.begin())
+	);
+	name = std::regex_replace(name, std::regex("(:|\\*)"), "_");
+	this->unencryptedFileStream = std::ofstream(name, std::ios::binary | std::ios::app);
+	if (!this->unencryptedFileStream) {
+		Logger::get().log("Failed to open stream");
+	}
 	if (!this->tlsBuffer.empty()) {
 		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
 		this->serverTlsForwarder->getServer()->received_data(data);

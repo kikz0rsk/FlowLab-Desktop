@@ -13,6 +13,9 @@ class ClientForwarder;
 
 class TcpConnection : public Connection {
 	protected:
+		static constexpr const char* SERVER_TAG = "SERVER>>>>>>>>>";
+		static constexpr const char* CLIENT_TAG = "CLIENT>>>>>>>>>";
+
 		unsigned int ackNumber{};
 		std::atomic_uint32_t ourSequenceNumber = 0;
 		unsigned long long ourWindowSize = 65'535;
@@ -34,6 +37,8 @@ class TcpConnection : public Connection {
 		std::deque<uint8_t> unencryptedStream{};
 		std::string tlsRelayStatus = "Unknown";
 		uint16_t clientHandshakeRecordSize = 0;
+		std::ofstream unencryptedFileStream;
+		std::string lastTag;
 
 	public:
 		TcpConnection(
