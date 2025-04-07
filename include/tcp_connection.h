@@ -29,7 +29,6 @@ class TcpConnection : public Connection {
 		bool doTlsRelay = false;
 
 		std::vector<uint8_t> tlsBuffer{};
-		std::set<std::string> domains{};
 		std::string serverNameIndication{};
 		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
@@ -109,4 +108,6 @@ class TcpConnection : public Connection {
 		const std::string& getTlsRelayStatus() const;
 
 		std::set<std::string>& getDomains();
+
+		void logToFile() override;
 };

@@ -9,6 +9,7 @@
 #include "logger.h"
 #include "remote_socket_status.h"
 #include "socket_utils.h"
+#include "file_writer.h"
 
 Connection::Connection(
 	std::shared_ptr<Client> client,
@@ -41,7 +42,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		packet.getRawPacket()->getPacketTimeStamp(),
 		false,
 		isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
-	pcapWriter->writePacket(rawPacket);
+	fileWriter->writePacket(rawPacket);
 
 	lastPacketSentTime = std::chrono::system_clock::now();
 
@@ -152,8 +153,8 @@ std::optional<ndpi::ndpi_protocol> Connection::getNdpiProtocol() const {
 	return ndpiProtocol;
 }
 
-void Connection::setPcapWriter(const std::shared_ptr<pcpp::PcapNgFileWriterDevice> &pcapWriter) {
-	Connection::pcapWriter = pcapWriter;
+void Connection::setPcapWriter(const std::shared_ptr<FileWriter> &pcapWriter) {
+	Connection::fileWriter = pcapWriter;
 }
 
 void Connection::setDnsManager(std::shared_ptr<DnsManager> dnsManager) {
@@ -221,4 +222,35 @@ std::atomic_uint64_t Connection::getSentBytes() const {
 
 std::atomic_uint64_t Connection::getReceivedBytes() const {
 	return receivedBytes.load();
+}
+
+void Connection::logToFile() {
+	if (remoteSocketStatus != RemoteSocketStatus::CLOSED) {
+		return;
+	}
+
+	std::unique_ptr<ndpi::ndpi_serializer> ndpiSerializer = std::make_unique<ndpi::ndpi_serializer>();
+	ndpi::ndpi_init_serializer(ndpiSerializer.get(), ndpi::ndpi_serialization_format::ndpi_serialization_format_json);
+	ndpi::ndpi_dpi2json(ndpiStr, ndpiFlow.get(), *ndpiProtocol, ndpiSerializer.get());
+	std::uint32_t length{};
+	char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
+	std::istringstream stream(buf);
+	Json::Value json;
+	stream >> json;
+
+	this->fileWriter->writeConnectionLog(
+		std::chrono::system_clock::now().time_since_epoch().count(),
+		this->client->getClientIp().toString(),
+		this->srcIp.toString(),
+		this->srcPort,
+		this->dstIp.toString(),
+		this->dstPort,
+		this->protocol == Protocol::TCP ? "TCP" : "UDP",
+		this->sentBytes.load(),
+		this->receivedBytes.load(),
+		this->sentPacketCount.load(),
+		this->receivedPacketCount.load(),
+		this->domains,
+		json
+	);
 }

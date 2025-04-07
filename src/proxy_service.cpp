@@ -15,6 +15,7 @@
 #include "tracy/Tracy.hpp"
 
 #include "logger.h"
+#include "file_writer.h"
 #include "socket_utils.h"
 #include "tcp_connection.h"
 #include "udp_connection.h"
@@ -66,16 +67,14 @@ void ProxyService::start() {
 	Logger::get().log("Done generating key pair");
 	stopFlag = false;
 
-	std::stringstream buffer;
-	const auto time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	const auto localTime = std::localtime(&time);
-	buffer << std::put_time(localTime, "%Y_%m_%d_%H_%M_%S");
-	std::string filename = "output_" + buffer.str() + ".pcapng";
-	pcapWriter = std::make_shared<pcpp::PcapNgFileWriterDevice>(filename);
+	try {
+		auto writer = std::make_shared<FileWriter>();
+	} catch (const std::exception& e) {
+		Logger::get().log("Cannot open file for writing: " + std::string(e.what()));
+		std::cerr << "Cannot open file for writing: " + std::string(e.what()) << std::endl;
+		running = false;
 
-	if (!pcapWriter->open()){
-		std::cerr << "Cannot open " + filename + " for writing" << std::endl;
-		exit(210);
+		return;
 	}
 
 	thread = std::thread(
@@ -108,8 +107,8 @@ std::shared_ptr<DnsManager> ProxyService::getDnsManager() const {
 	return dnsManager;
 }
 
-std::shared_ptr<pcpp::PcapNgFileWriterDevice> ProxyService::getPcapWriter() const {
-	return pcapWriter;
+std::shared_ptr<FileWriter> ProxyService::getPcapWriter() const {
+	return fileWriter;
 }
 
 ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() {
@@ -366,7 +365,7 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 	pcpp::IPAddress srcIp;
 	pcpp::IPAddress dstIp;
 
-	pcapWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
+	fileWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
 	pcpp::Layer *networkLayer;
 	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer()); ipv4Layer != nullptr) {
 		srcIp = ipv4Layer->getSrcIPAddress();
@@ -400,7 +399,10 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		return true;
 	}
 
-	Logger::Logger::get().log(std::string("Received ") + (protocol == Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort));
+	Logger::Logger::get().log(
+		std::string("Received ") + (protocol ==
+			Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort)
+	);
 
 	if (const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
 		dnsManager->processDns(*dnsLayer);
@@ -474,7 +476,7 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 			);
 		}
 
-		connection->setPcapWriter(pcapWriter);
+		connection->setPcapWriter(fileWriter);
 		connection->setDnsManager(dnsManager);
 		connections->addConnection(connection);
 	}

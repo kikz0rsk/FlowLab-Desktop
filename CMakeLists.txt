@@ -13,6 +13,7 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
 find_package(botan CONFIG REQUIRED)
+find_package(jsoncpp CONFIG REQUIRED)
 
 include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
@@ -71,7 +72,7 @@ set(PROJECT_SOURCES
         include/ndpi.h
         include/packet_utils.h
         include/syntax_highlighter.h
-        include/pcap_writer.h
+        include/file_writer.h
         include/dns_manager.h
         include/dns_entry.h
         include/socket_utils.h
@@ -123,6 +124,7 @@ target_link_libraries(network-analyzer-gui PUBLIC
         pcap
         OpenSSL::Crypto OpenSSL::SSL
         ndpi
+        JsonCpp::JsonCpp
 )
 
 if (WIN32)

@@ -136,6 +136,7 @@ void UdpConnection::gracefullyCloseRemoteSocket() {
 	shutdown(socket, SD_BOTH);
 	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
+	logToFile();
 }
 
 std::vector<uint8_t> UdpConnection::read() {

@@ -17,6 +17,7 @@
 #include "ndpi.h"
 
 class DnsManager;
+class FileWriter;
 
 namespace pcpp {
 	class IPv4Layer;
@@ -56,9 +57,11 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		ndpi::ndpi_detection_module_struct *ndpiStr = nullptr;
 		std::unique_ptr<ndpi::ndpi_flow_struct, std::function<void(ndpi::ndpi_flow_struct *)>> ndpiFlow = nullptr;
 		std::optional<ndpi::ndpi_protocol> ndpiProtocol{};
-		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
+		std::shared_ptr<FileWriter> fileWriter;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::shared_ptr<Client> client;
+
+		std::set<std::string> domains{};
 
 	public:
 		Connection(
@@ -133,7 +136,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		[[nodiscard]] std::optional<ndpi::ndpi_protocol> getNdpiProtocol() const;
 
-		void setPcapWriter(const std::shared_ptr<pcpp::PcapNgFileWriterDevice> &pcapWriter);
+		void setPcapWriter(const std::shared_ptr<FileWriter> &pcapWriter);
 
 		void setDnsManager(std::shared_ptr<DnsManager> dnsManager);
 
@@ -162,4 +165,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		[[nodiscard]] std::atomic_uint64_t getSentBytes() const;
 
 		[[nodiscard]] std::atomic_uint64_t getReceivedBytes() const;
+
+		virtual void logToFile();
 };

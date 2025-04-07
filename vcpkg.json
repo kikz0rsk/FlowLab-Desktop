@@ -2,6 +2,7 @@
   "dependencies": [
     "openssl",
     "botan",
-    "boost-signals2"
+    "boost-signals2",
+    "jsoncpp"
   ]
 }

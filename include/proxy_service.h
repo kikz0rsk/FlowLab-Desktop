@@ -17,6 +17,8 @@
 #include "client.h"
 #include "logger.h"
 
+class FileWriter;
+
 namespace ndpi {
 	struct ndpi_detection_module_struct;
 }
@@ -133,7 +135,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		std::atomic_bool stopFlag = false;
 		std::atomic_bool running = false;
 		std::shared_ptr<ConnectionManager> connections;
-		std::shared_ptr<pcpp::PcapNgFileWriterDevice> pcapWriter;
+		std::shared_ptr<FileWriter> fileWriter;
 		ndpi::ndpi_detection_module_struct *ndpiStruct;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::atomic_bool enableTlsRelay = true;
@@ -153,7 +155,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 
 		[[nodiscard]] std::shared_ptr<DnsManager> getDnsManager() const;
 
-		[[nodiscard]] std::shared_ptr<pcpp::PcapNgFileWriterDevice> getPcapWriter() const;
+		[[nodiscard]] std::shared_ptr<FileWriter> getPcapWriter() const;
 
 		[[nodiscard]] ndpi::ndpi_detection_module_struct *getNdpiStruct();
 

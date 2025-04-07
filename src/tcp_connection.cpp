@@ -67,6 +67,7 @@ void TcpConnection::gracefullyCloseRemoteSocket() {
 	shutdown(socket, SD_BOTH);
 	closeSocketAndInvalidate();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
+	logToFile();
 }
 
 void TcpConnection::sendFinAck() {
@@ -630,6 +631,7 @@ void TcpConnection::forcefullyCloseAll() {
 		sendRst();
 	}
 	setTcpStatus(TcpStatus::CLOSED);
+	logToFile();
 }
 
 bool TcpConnection::canRemove() const {
@@ -750,4 +752,11 @@ void TcpConnection::onTlsServerSuccess() {
 
 std::set<std::string> & TcpConnection::getDomains() {
 	return domains;
+}
+
+void TcpConnection::logToFile() {
+	if (tcpStatus != TcpStatus::CLOSED) {
+		return;
+	}
+	Connection::logToFile();
 }
