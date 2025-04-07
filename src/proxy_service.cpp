@@ -68,7 +68,7 @@ void ProxyService::start() {
 	stopFlag = false;
 
 	try {
-		auto writer = std::make_shared<FileWriter>();
+		this->fileWriter = std::make_shared<FileWriter>();
 	} catch (const std::exception& e) {
 		Logger::get().log("Cannot open file for writing: " + std::string(e.what()));
 		std::cerr << "Cannot open file for writing: " + std::string(e.what()) << std::endl;
