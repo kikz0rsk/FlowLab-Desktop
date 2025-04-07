@@ -161,10 +161,10 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && !this->proxyService.expired() && this->proxyService.lock()->getEnableTlsRelay();
 
 		ackNumber = packetSequenceNumber + 1;
-		// std::random_device rd;
-		// std::mt19937 gen(rd());
-		// std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
-		ourSequenceNumber = 100;
+		std::random_device rd;
+		std::mt19937 gen(rd());
+		std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
+		ourSequenceNumber = distrib(gen);
 		setTcpStatus(TcpStatus::SYN_RECEIVED);
 
 		const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
@@ -332,6 +332,7 @@ void TcpConnection::openSocket() {
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 		setTcpStatus(TcpStatus::CLOSED);
+		socket = 0;
 
 		return;
 	}
@@ -356,6 +357,7 @@ void TcpConnection::openSocket() {
 		sendRst();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 		setTcpStatus(TcpStatus::CLOSED);
+		closeSocketAndInvalidate();
 
 		return;
 	}
