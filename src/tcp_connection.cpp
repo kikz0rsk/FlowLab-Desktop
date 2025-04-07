@@ -197,8 +197,8 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && lastRemoteAckedNum > finSequenceNumber) {
 			setTcpStatus(TcpStatus::FIN_WAIT_2);
 		} else if (tcpStatus == TcpStatus::CLOSE_WAIT && lastRemoteAckedNum > finSequenceNumber) {
-			gracefullyCloseRemoteSocket();
 			setTcpStatus(TcpStatus::CLOSED);
+			gracefullyCloseRemoteSocket();
 		}
 	}
 
@@ -283,8 +283,8 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 			ackNumber += 1;
 			sendAck();
 
-			gracefullyCloseRemoteSocket();
 			setTcpStatus(TcpStatus::CLOSED);
+			gracefullyCloseRemoteSocket();
 
 			return;
 		} else if (tcpStatus == TcpStatus::ESTABLISHED) {
@@ -406,8 +406,8 @@ void TcpConnection::openSocket() {
 
 		Logger::get().log("connect() failed: " + std::to_string(errCode));
 		sendRst();
-		gracefullyCloseRemoteSocket();
 		setTcpStatus(TcpStatus::CLOSED);
+		gracefullyCloseRemoteSocket();
 	} else {
 		Logger::get().log("Connected to remote socket");
 	}
@@ -468,9 +468,9 @@ std::vector<uint8_t> TcpConnection::read() {
 		}
 
 		log("recv() failed: " + std::to_string(error));
-		gracefullyCloseRemoteSocket();
 		sendRst();
 		setTcpStatus(TcpStatus::CLOSED);
+		gracefullyCloseRemoteSocket();
 
 		return {};
 	}
