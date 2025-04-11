@@ -83,7 +83,7 @@ class TcpConnection : public Connection {
 
 		[[nodiscard]] std::atomic_uint32_t &getOurSequenceNumber();
 
-		void sendRst();
+		void sendRst(bool ack = false);
 
 		// [[nodiscard]]  static unsigned long getBytesAvailable(SOCKET socket);
 

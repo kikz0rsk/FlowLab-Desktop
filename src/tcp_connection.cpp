@@ -340,7 +340,7 @@ void TcpConnection::openSocket() {
 
 	if (socket == INVALID_SOCKET) {
 		std::cerr << "socket() failed: " << getLastSocketError() << std::endl;
-		sendRst();
+		sendRst(true);
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 		setTcpStatus(TcpStatus::CLOSED);
 		socket = 0;
@@ -365,7 +365,7 @@ void TcpConnection::openSocket() {
 
 	if (res == SOCKET_ERROR) {
 		std::cerr << "bind() failed: " << getLastSocketError() << std::endl;
-		sendRst();
+		sendRst(true);
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 		setTcpStatus(TcpStatus::CLOSED);
 		closeSocketAndInvalidate();
@@ -415,7 +415,7 @@ void TcpConnection::openSocket() {
 		}
 
 		Logger::get().log("connect() failed: " + std::to_string(errCode));
-		sendRst();
+		sendRst(true);
 		setTcpStatus(TcpStatus::CLOSED);
 		gracefullyCloseRemoteSocket();
 	} else {
@@ -478,7 +478,7 @@ std::vector<uint8_t> TcpConnection::read() {
 		}
 
 		log("recv() failed: " + std::to_string(error));
-		sendRst();
+		sendRst(true);
 		setTcpStatus(TcpStatus::CLOSED);
 		gracefullyCloseRemoteSocket();
 
@@ -537,10 +537,12 @@ void TcpConnection::writeEvent() {
 }
 
 void TcpConnection::exceptionEvent() {
+	Logger::get().log("Exception event");
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
+		Logger::get().log("Exception event: Failed to open");
 		u_long mode = 0;// Blocking mode
 		ioctlSocket(socket, FIONBIO, &mode);
-		sendRst();
+		sendRst(true);
 		gracefullyCloseRemoteSocket();
 		setTcpStatus(TcpStatus::CLOSED);
 	}
@@ -603,11 +605,14 @@ std::atomic_uint32_t & TcpConnection::getOurSequenceNumber() {
 	return ourSequenceNumber;
 }
 
-void TcpConnection::sendRst() {
+void TcpConnection::sendRst(bool ack) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
 	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
 	tcpLayer->getTcpHeader()->rstFlag = 1;
+	if (ack) {
+		tcpLayer->getTcpHeader()->ackFlag = 1;
+	}
 	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(ackNumber);
 	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(ourSequenceNumber.load());
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(ourWindowSize);
@@ -638,7 +643,7 @@ void TcpConnection::forcefullyCloseAll() {
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	}
 	if (this->tcpStatus != TcpStatus::CLOSED) {
-		sendRst();
+		sendRst(true);
 	}
 	setTcpStatus(TcpStatus::CLOSED);
 	logToFile();
