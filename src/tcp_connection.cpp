@@ -159,6 +159,13 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	++sentPacketCount;
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
+		if (this->tcpStatus == TcpStatus::SYN_RECEIVED) {
+			openSocket();
+			return;
+		}
+		if (this->tcpStatus != TcpStatus::CLOSED) {
+            return;
+        }
 		resetState();
 		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && !this->proxyService.expired() && this->proxyService.lock()->getEnableTlsRelay();
 
