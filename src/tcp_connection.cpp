@@ -668,6 +668,7 @@ void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
 	}
 
 	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
+	this->unencryptedFileStream.flush();
 	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->serverTlsForwarder->getServer()->send(data);
 }
@@ -682,6 +683,7 @@ void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
 	}
 
 	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
+	this->unencryptedFileStream.flush();
 	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
 	this->clientTlsForwarder->getClient()->send(data);
 }
