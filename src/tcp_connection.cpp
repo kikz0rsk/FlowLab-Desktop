@@ -54,6 +54,8 @@ void TcpConnection::resetState() {
 	tlsBuffer.clear();
 	domains.clear();
 	tlsRelayStatus = "Unknown";
+	lastTag.clear();
+	clientHandshakeRecordSize = 0;
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
 }
