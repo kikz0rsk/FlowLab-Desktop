@@ -17,13 +17,28 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	connect(this, &TlsPage::removeConnection, this, &TlsPage::onRemoveConnection);
 	connect(ui->connectionsList, &QTreeView::activated, this, &TlsPage::listView_activated);
 	connect(ui->connectionsList, &QTreeView::clicked, this, &TlsPage::listView_activated);
+	connect(
+		ui->connectionsList->header(),
+		&QHeaderView::sectionClicked,
+		[this](int logicalIndex){
+			if (numericCols.contains(logicalIndex)) {
+				proxy->setSortRole(Qt::UserRole);
+			} else {
+				proxy->setSortRole(Qt::DisplayRole);
+			}
+			proxy->sort(logicalIndex, proxy->sortOrder());
+		}
+	);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &TlsPage::utf8Button_clicked);
 	connect(ui->utf16Button, &QPushButton::clicked, this, &TlsPage::utf16Button_clicked);
 	connect(ui->enableTlsProxyCheckbox, &QCheckBox::checkStateChanged, this, &TlsPage::enableTlsRelayCheckbox_clicked);
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "Domain"});
-	ui->connectionsList->setModel(&model);
+	proxy = new QSortFilterProxyModel(ui->connectionsList);
+	proxy->setSourceModel(&model);
+	ui->connectionsList->setSortingEnabled(true);
+	ui->connectionsList->setModel(proxy);
 	this->onTlsConnectionSignalConnection =
 		mainWindow.getProxyService()->getConnectionManager()->getTlsConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<TcpConnection> connection) {
@@ -97,17 +112,19 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 	// ui->protocolText->setText(QString::fromUtf8(buffer.data()));
 	// char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
 	// ui->ndpiJson->setPlainText(QString::fromUtf8(buf, length));
-
 }
 
 void TlsPage::onAddConnection(std::shared_ptr<TcpConnection> connection) {
 	auto *orderNum = new QStandardItem(QString::number(connection->getOrderNum()));
+	orderNum->setData(QVariant(connection->getOrderNum()), Qt::UserRole);
 	auto *clientIp = new QStandardItem(QString::fromStdString(connection->getClient()->getClientIp().toString()));
 	clientIp->setData(QVariant::fromValue(connection));
 	auto *srcIp = new QStandardItem(QString::fromStdString(connection->getSrcIp().toString()));
 	auto *srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
+	srcPort->setData(QVariant(connection->getSrcPort()), Qt::UserRole);
 	auto *dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
 	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
+	dstPort->setData(QVariant(connection->getDstPort()), Qt::UserRole);
 	std::string domains;
 	for (const auto& domain : connection->getDomains()) {
 		domains += domain + ", ";

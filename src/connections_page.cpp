@@ -15,12 +15,27 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	connect(this, &ConnectionsPage::removeConnection, this, &ConnectionsPage::onRemoveConnection);
 	connect(ui->connectionsList, &QTreeView::activated, this, &ConnectionsPage::listView_activated);
 	connect(ui->connectionsList, &QTreeView::clicked, this, &ConnectionsPage::listView_activated);
+	connect(
+		ui->connectionsList->header(),
+		QHeaderView::sectionClicked,
+		[this](int logicalIndex){
+			if (numericCols.contains(logicalIndex)) {
+				proxy->setSortRole(Qt::UserRole);
+			} else {
+				proxy->setSortRole(Qt::DisplayRole);
+			}
+			proxy->sort(logicalIndex, proxy->sortOrder());
+		}
+	);
 	connect(ui->utf8Button, &QPushButton::clicked, this, &ConnectionsPage::utf8Button_clicked);
 	connect(ui->utf16Button, &QPushButton::clicked, this, &ConnectionsPage::utf16Button_clicked);
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "L4 Protocol"});
-	ui->connectionsList->setModel(&model);
+	proxy = new QSortFilterProxyModel(ui->connectionsList);
+	proxy->setSourceModel(&model);
+	ui->connectionsList->setSortingEnabled(true);
+	ui->connectionsList->setModel(proxy);
 	this->onConnectionSignalConnection =
 		mainWindow.getProxyService()->getConnectionManager()->getConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<Connection> connection) {
@@ -106,12 +121,15 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 
 void ConnectionsPage::onAddConnection(std::shared_ptr<Connection> connection) {
 	auto *orderNum = new QStandardItem(QString::number(connection->getOrderNum()));
+	orderNum->setData(QVariant(connection->getOrderNum()), Qt::UserRole);
 	auto *clientIp = new QStandardItem(QString::fromStdString(connection->getClient()->getClientIp().toString()));
 	clientIp->setData(QVariant::fromValue(connection));
 	auto *srcIp = new QStandardItem(QString::fromStdString(connection->getSrcIp().toString()));
 	auto *srcPort = new QStandardItem(QString::number((uint) connection->getSrcPort()));
+	srcPort->setData(QVariant(connection->getSrcPort()), Qt::UserRole);
 	auto *dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
 	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
+	dstPort->setData(QVariant(connection->getDstPort()), Qt::UserRole);
 	auto *protocol = new QStandardItem(connection->getProtocol() == Protocol::TCP ? "TCP" : "UDP");
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, protocol});
 }

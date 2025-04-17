@@ -1,6 +1,7 @@
 #ifndef CONNECTIONS_H
 #define CONNECTIONS_H
 
+#include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QWidget>
 #include "connection.h"
@@ -36,8 +37,10 @@ class ConnectionsPage : public QWidget
 		MainWindow& mainWindow;
 		Ui::ConnectionsPage *ui;
 		QStandardItemModel model;
+		QSortFilterProxyModel* proxy;
 		int showMode = 0;
 		boost::signals2::connection onConnectionSignalConnection;
+		const QSet<int> numericCols = { 0, 3, 5 };
 };
 
 #endif// CONNECTIONS_H

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QWidget>
 
@@ -38,6 +39,8 @@ class TlsPage : public QWidget
 		MainWindow& mainWindow;
 		Ui::TlsPage *ui;
 		QStandardItemModel model;
+		QSortFilterProxyModel* proxy;
 		int showMode = 0;
 		boost::signals2::connection onTlsConnectionSignalConnection;
+		const QSet<int> numericCols = { 0, 3, 5 };
 };
