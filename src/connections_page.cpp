@@ -72,7 +72,7 @@ void ConnectionsPage::utf16Button_clicked() {
 }
 
 void ConnectionsPage::listView_activated(const QModelIndex &index) {
-	auto connection = model.index(index.row(), 1).data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
+	auto connection = index.sibling(index.row(), 1).data(Qt::UserRole + 1).value<std::shared_ptr<Connection>>();
 	if (!connection) {
 		return;
 	}

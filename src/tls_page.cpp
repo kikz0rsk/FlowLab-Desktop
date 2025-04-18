@@ -79,7 +79,7 @@ void TlsPage::enableTlsRelayCheckbox_clicked(Qt::CheckState state) const {
 }
 
 void TlsPage::listView_activated(const QModelIndex &index) {
-	auto connection = model.index(index.row(), 1).data(Qt::UserRole + 1).value<std::shared_ptr<TcpConnection>>();
+	auto connection = index.sibling(index.row(), 1).data(Qt::UserRole + 1).value<std::shared_ptr<TcpConnection>>();
 	if (!connection) {
 		return;
 	}
