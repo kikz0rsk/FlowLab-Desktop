@@ -239,8 +239,8 @@ void Connection::logToFile() {
 	stream >> json;
 
 	this->fileWriter->writeConnectionLog(
-		connStartTime.time_since_epoch().count(),
-		std::chrono::system_clock::now().time_since_epoch().count(),
+		connStartTime.time_since_epoch().count() / 1'000'000,
+		std::chrono::system_clock::now().time_since_epoch().count() / 1'000'000,
 		this->client->getClientIp().toString(),
 		this->srcIp.toString(),
 		this->srcPort,
