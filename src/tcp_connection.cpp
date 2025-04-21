@@ -814,7 +814,7 @@ std::set<std::string> & TcpConnection::getDomains() {
 }
 
 void TcpConnection::logToFile() {
-	if (tcpStatus != TcpStatus::CLOSED) {
+	if (tcpStatus != TcpStatus::CLOSED || remoteSocketStatus != RemoteSocketStatus::CLOSED) {
 		return;
 	}
 	if (this->unencryptedFileStream.tellp() == 0) {
