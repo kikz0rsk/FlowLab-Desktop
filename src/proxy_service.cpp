@@ -401,10 +401,10 @@ bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
 		return true;
 	}
 
-	Logger::Logger::get().log(
-		std::string("Received ") + (protocol ==
-			Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort)
-	);
+	// Logger::Logger::get().log(
+	// 	std::string("Received ") + (protocol ==
+	// 		Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort)
+	// );
 
 	if (const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
 		dnsManager->processDns(*dnsLayer);

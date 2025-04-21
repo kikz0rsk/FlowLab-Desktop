@@ -738,14 +738,14 @@ void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cer
 	if (altName.has_items() && !altName.dn().to_string().empty()) {
 		domains.insert(altName.dn().to_string());
 	}
-	std::string name = std::format(
+	this->filePath = std::format(
 		"tls-streams/{}_{}_{}.bin",
 		this->client->getClientIp().toString(),
 		srcPort,
 		domains.empty() ? this->dstIp.toString() : std::string(*domains.begin())
 	);
-	name = std::regex_replace(name, std::regex("(:|\\*)"), "_");
-	this->unencryptedFileStream = std::ofstream(name, std::ios::binary | std::ios::app);
+	this->filePath = std::regex_replace(this->filePath, std::regex("(:|\\*)"), "_");
+	this->unencryptedFileStream = std::ofstream(this->filePath, std::ios::binary | std::ios::app);
 	if (!this->unencryptedFileStream) {
 		Logger::get().log("Failed to open stream");
 	}
@@ -816,6 +816,13 @@ std::set<std::string> & TcpConnection::getDomains() {
 void TcpConnection::logToFile() {
 	if (tcpStatus != TcpStatus::CLOSED) {
 		return;
+	}
+	if (this->unencryptedFileStream.tellp() == 0) {
+		this->unencryptedFileStream.close();
+		std::remove(this->filePath.c_str());
+	}
+	if (this->unencryptedFileStream.is_open()) {
+		this->unencryptedFileStream.close();
 	}
 	Connection::logToFile();
 }

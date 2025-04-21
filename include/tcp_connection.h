@@ -39,6 +39,7 @@ class TcpConnection : public Connection {
 		uint16_t clientHandshakeRecordSize = 0;
 		std::ofstream unencryptedFileStream;
 		std::string lastTag;
+		std::string filePath;
 
 	public:
 		TcpConnection(
