@@ -39,7 +39,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		uint16_t srcPort{};
 		uint16_t dstPort{};
 		std::atomic<RemoteSocketStatus> remoteSocketStatus = RemoteSocketStatus::CLOSED;
-		std::chrono::system_clock::time_point createdTime = std::chrono::system_clock::now();
+		std::chrono::system_clock::time_point connStartTime = std::chrono::system_clock::now();
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
 		SOCKET socket{};
@@ -104,7 +104,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		[[nodiscard]] const Protocol &getProtocol() const;
 
-		[[nodiscard]] const std::chrono::system_clock::time_point &getCreatedTime() const;
+		[[nodiscard]] const std::chrono::system_clock::time_point &getStartTime() const;
 
 		[[nodiscard]] const std::optional<std::chrono::system_clock::time_point> &getLastPacketSentTime() const;
 

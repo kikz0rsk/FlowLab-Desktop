@@ -408,6 +408,7 @@ void TcpConnection::openSocket() {
 				setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 				sendSynAck();
 				ourSequenceNumber += 1;
+				connStartTime = std::chrono::system_clock::now();
 			}
 
 			return;
@@ -422,6 +423,10 @@ void TcpConnection::openSocket() {
 		gracefullyCloseRemoteSocket();
 	} else {
 		Logger::get().log("Connected to remote socket");
+		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
+		sendSynAck();
+		ourSequenceNumber += 1;
+		connStartTime = std::chrono::system_clock::now();
 	}
 }
 
@@ -535,6 +540,7 @@ void TcpConnection::writeEvent() {
 		ioctlSocket(socket, FIONBIO, &mode);
 		sendSynAck();
 		ourSequenceNumber += 1;
+		connStartTime = std::chrono::system_clock::now();
 	}
 }
 

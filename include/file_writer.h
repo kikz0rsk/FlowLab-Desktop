@@ -30,7 +30,8 @@ class FileWriter {
 		}
 
 		void writeConnectionLog(
-			uint64_t timestamp,
+			uint64_t connStartTime,
+			uint64_t connCloseTime,
 			const std::string& clientIp,
 			const std::string& sourceIp,
 			uint16_t srcPort,
@@ -45,7 +46,8 @@ class FileWriter {
 			const Json::Value& ndpiResponse
 		) {
 			Json::Value json;
-			json["timestamp"] = timestamp;
+			json["connStartTime"] = connStartTime;
+			json["connCloseTime"] = connCloseTime;
 			json["clientIp"] = clientIp;
 			json["sourceIp"] = sourceIp;
 			json["srcPort"] = srcPort;

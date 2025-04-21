@@ -86,8 +86,8 @@ const Protocol & Connection::getProtocol() const {
 	return protocol;
 }
 
-const std::chrono::system_clock::time_point & Connection::getCreatedTime() const {
-	return createdTime;
+const std::chrono::system_clock::time_point & Connection::getStartTime() const {
+	return connStartTime;
 }
 
 const std::optional<std::chrono::system_clock::time_point> & Connection::getLastPacketSentTime() const {
@@ -239,6 +239,7 @@ void Connection::logToFile() {
 	stream >> json;
 
 	this->fileWriter->writeConnectionLog(
+		connStartTime.time_since_epoch().count(),
 		std::chrono::system_clock::now().time_since_epoch().count(),
 		this->client->getClientIp().toString(),
 		this->srcIp.toString(),

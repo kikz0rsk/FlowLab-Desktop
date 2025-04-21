@@ -118,6 +118,7 @@ void UdpConnection::openSocket() {
 	}
 
 	setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
+	connStartTime = std::chrono::system_clock::now();
 }
 
 void UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
