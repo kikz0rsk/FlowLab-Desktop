@@ -451,9 +451,13 @@ void TcpConnection::sendAck() {
 void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	ZoneScoped;
 	sentBytes += data.size();
+	// std::vector modifiedData(data.begin(), data.end());
+	// regexReplace(modifiedData, std::regex("^Accept-Encoding: (\\*|.+)\r\n", std::regex::icase), "Accept-Encoding: identity\r\n");
+	// const int res = send(socket, reinterpret_cast<const char *>(modifiedData.data()), static_cast<int>(modifiedData.size()), 0);
 	const int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 	if (res != SOCKET_ERROR && res != data.size()) {
 		log("send() failed to send all data");
+		assert(false);
 	}
 }
 

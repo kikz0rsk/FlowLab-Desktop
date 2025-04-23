@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QStandardItemModel>
+#include <regex>
 #include <thread>
 
 #include "client.h"
@@ -13,8 +14,8 @@ class ClientForwarder;
 
 class TcpConnection : public Connection {
 	protected:
-		static constexpr const char* SERVER_TAG = "SERVER>>>>>>>>>";
-		static constexpr const char* CLIENT_TAG = "CLIENT>>>>>>>>>";
+		static constexpr const char *SERVER_TAG = "SERVER>>>>>>>>>";
+		static constexpr const char *CLIENT_TAG = "CLIENT>>>>>>>>>";
 
 		unsigned int ackNumber{};
 		std::atomic_uint32_t ourSequenceNumber = 0;
@@ -116,4 +117,36 @@ class TcpConnection : public Connection {
 		std::set<std::string>& getDomains();
 
 		void logToFile() override;
+
+		template<typename ByteT>
+		void replaceBytes(
+			std::vector<ByteT>& data,
+			const std::vector<ByteT>& search,
+			const std::vector<ByteT>& replacement
+		)	{
+			if (search.empty()){
+				return;
+			}
+			auto it = data.begin();
+			while (true) {
+				auto pos = std::search(it, data.end(), search.begin(), search.end());
+				if (pos == data.end()) {
+					break;
+				}
+
+				pos = data.erase(pos, pos + search.size());
+				pos = data.insert(pos, replacement.begin(), replacement.end());
+				it = pos + replacement.size();
+			}
+		}
+
+		void regexReplace(
+			std::vector<uint8_t>& data,
+			const std::regex& pat,
+			const std::string& repl
+		) {
+			std::string s(reinterpret_cast<char *>(data.data()), data.size());
+			std::string out = std::regex_replace(s, pat, repl);
+			data.assign(out.begin(), out.end());
+		}
 };
