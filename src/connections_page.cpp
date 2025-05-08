@@ -17,7 +17,7 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	connect(ui->connectionsList, &QTreeView::clicked, this, &ConnectionsPage::listView_activated);
 	connect(
 		ui->connectionsList->header(),
-		QHeaderView::sectionClicked,
+		&QHeaderView::sectionClicked,
 		[this](int logicalIndex){
 			if (numericCols.contains(logicalIndex)) {
 				proxy->setSortRole(Qt::UserRole);
