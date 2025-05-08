@@ -285,7 +285,6 @@
               </item>
              </layout>
             </widget>
-            <widget class="QTextEdit" name="certificateDetails"/>
            </widget>
           </item>
          </layout>
