@@ -163,11 +163,12 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
 		if (this->tcpStatus == TcpStatus::SYN_RECEIVED) {
 			openSocket();
+
 			return;
 		}
 		if (this->tcpStatus != TcpStatus::CLOSED) {
-            return;
-        }
+			return;
+		}
 		resetState();
 		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && !this->proxyService.expired() && this->proxyService.lock()->getEnableTlsRelay();
 
@@ -176,6 +177,13 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		std::mt19937 gen(rd());
 		std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
 		ourSequenceNumber = distrib(gen);
+
+		// if (this->dstPort == 443) {
+		// 	sendRst(true);
+		//
+		// 	return;
+		// }
+
 		setTcpStatus(TcpStatus::SYN_RECEIVED);
 
 		const auto windowScaleOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Window);
@@ -451,9 +459,6 @@ void TcpConnection::sendAck() {
 void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	ZoneScoped;
 	sentBytes += data.size();
-	// std::vector modifiedData(data.begin(), data.end());
-	// regexReplace(modifiedData, std::regex("^Accept-Encoding: (\\*|.+)\r\n", std::regex::icase), "Accept-Encoding: identity\r\n");
-	// const int res = send(socket, reinterpret_cast<const char *>(modifiedData.data()), static_cast<int>(modifiedData.size()), 0);
 	const int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
 	if (res != SOCKET_ERROR && res != data.size()) {
 		log("send() failed to send all data");
@@ -694,10 +699,20 @@ void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
 		this->lastTag = CLIENT_TAG;
 	}
 
-	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
+	std::vector modifiedData(data.begin(), data.end());
+	regexReplace(
+		modifiedData,
+		std::regex(
+			"\r\nAccept-Encoding: .+\r\n",
+			std::regex_constants::icase
+		),
+		"\r\nAccept-Encoding: identity\r\n"
+	);
+
+	this->unencryptedFileStream.write(reinterpret_cast<const char *>(modifiedData.data()), modifiedData.size());
 	this->unencryptedFileStream.flush();
-	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
-	this->clientTlsForwarder->getClient()->send(data);
+	this->unencryptedStream.insert(unencryptedStream.end(), modifiedData.begin(), modifiedData.end());
+	this->clientTlsForwarder->getClient()->send(modifiedData);
 }
 
 void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
