@@ -1,5 +1,7 @@
-# FlowLab
-FlowLab is a tool for inspecting Android network flows in real-time. It provides a graphical user-friendly interface to visualize and analyze network traffic, with MITM capabilities for inspecting TLS communication.
+<h1 style="text-align: center">FlowLab</h1>
+<p style="text-align: center">FlowLab is a tool for inspecting Android network flows in real-time. It provides a graphical user-friendly interface to visualize and analyze network traffic, with MITM capabilities for inspecting TLS communication.</p>
+
+![FlowLab Screenshot](docs/assets/desktop_gui.png)
 
 ## Features
 * Supports TCP & UDP transport layer protocols
