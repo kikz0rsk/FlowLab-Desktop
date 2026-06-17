@@ -1,12 +1,12 @@
-#include "connections_page.h"
+#include "gui/connections_page.h"
 
 #include <utility>
 
-#include "syntax_highlighter.h"
+#include "gui/syntax_highlighter.h"
 #include "ui_connections_page.h"
 #include "ndpi.h"
 #include "tcp_connection.h"
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 
 ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::ConnectionsPage) {

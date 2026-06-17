@@ -1,4 +1,4 @@
-#include "dnspage.h"
+#include "gui/dns_page.h"
 
 #include "ui_dnspage.h"
 #include "dns_entry.h"

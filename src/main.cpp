@@ -1,4 +1,4 @@
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 
 #include <QApplication>
 #include <signal.h>
@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
 	signal(SIGPIPE, SIG_IGN);
 #endif
 	TracyNoop;
-	std::shared_ptr<ProxyService> proxyService = std::make_shared<ProxyService>();
+	auto proxyService = std::make_shared<ProxyService>();
 	QApplication a(argc, argv);
 	MainWindow w(proxyService);
 	w.show();

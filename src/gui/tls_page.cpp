@@ -1,11 +1,11 @@
-#include "tls_page.h"
+#include "gui/tls_page.h"
 
 #include <utility>
 
-#include "syntax_highlighter.h"
+#include "gui/syntax_highlighter.h"
 #include "ui_tls_page.h"
 #include "tcp_connection.h"
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 #include "ndpi.h"
 #include "proxy_service.h"
 

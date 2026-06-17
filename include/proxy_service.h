@@ -130,6 +130,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 
 	protected:
 		std::list<std::shared_ptr<Client>> clients;
+
 		std::thread thread;
 		SOCKET serverSocket6{};
 		std::atomic_bool stopFlag = false;

@@ -4,13 +4,13 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <QMessageBox>
 
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 
-#include "connections_page.h"
+#include "gui/connections_page.h"
 #include "./ui_mainwindow.h"
-#include "logswindow.h"
-#include "dnspage.h"
-#include "tls_page.h"
+#include "gui/logswindow.h"
+#include "gui/dns_page.h"
+#include "gui/tls_page.h"
 
 MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *parent)	:
 	QMainWindow(parent), ui(new Ui::MainWindow), proxyService(std::move(proxyService)) {

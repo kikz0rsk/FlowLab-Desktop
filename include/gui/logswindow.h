@@ -4,7 +4,7 @@
 #include <QWidget>
 #include <ui_logswindow.h>
 
-#include "logger.h"
+#include "../logger.h"
 
 namespace Ui {
 	class LogsWindow;

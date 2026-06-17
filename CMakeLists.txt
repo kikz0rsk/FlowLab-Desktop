@@ -36,14 +36,14 @@ FetchContent_MakeAvailable(tracy)
 
 set(PROJECT_SOURCES
         src/main.cpp
-        src/mainwindow.cpp
-        src/logswindow.cpp
-        src/dnspage.cpp
-        src/connections_page.cpp
-        include/mainwindow.h
-        include/logswindow.h
-        include/dnspage.h
-        include/connections_page.h
+        src/gui/mainwindow.cpp
+        src/gui/logswindow.cpp
+        src/gui/dns_page.cpp
+        src/gui/connections_page.cpp
+        include/gui/mainwindow.h
+        include/gui/logswindow.h
+        include/gui/dns_page.h
+        include/gui/connections_page.h
 
         src/syntax_highlighter.cpp
         src/connection_manager.cpp
@@ -71,7 +71,7 @@ set(PROJECT_SOURCES
         include/logger.h
         include/ndpi.h
         include/packet_utils.h
-        include/syntax_highlighter.h
+        include/gui/syntax_highlighter.h
         include/file_writer.h
         include/dns_manager.h
         include/dns_entry.h
@@ -82,8 +82,8 @@ set(PROJECT_SOURCES
         include/client.h
         src/client_forwarder.cpp
         src/server_forwarder.cpp
-        include/tls_page.h
-        src/tls_page.cpp
+        include/gui/tls_page.h
+        src/gui/tls_page.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

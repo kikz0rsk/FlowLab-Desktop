@@ -1,4 +1,4 @@
-#include "syntax_highlighter.h"
+#include "gui/syntax_highlighter.h"
 
 FlowlabSyntaxHighlighter::FlowlabSyntaxHighlighter(QObject *parent) : QSyntaxHighlighter(parent) {
 	keywords.emplace_back (

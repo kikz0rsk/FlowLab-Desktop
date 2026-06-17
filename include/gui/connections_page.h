@@ -4,9 +4,9 @@
 #include <QSortFilterProxyModel>
 #include <QStandardItemModel>
 #include <QWidget>
-#include "connection.h"
-#include "connection_manager.h"
-#include "proxy_service.h"
+#include "../connection.h"
+#include "../connection_manager.h"
+#include "../proxy_service.h"
 
 class MainWindow;
 

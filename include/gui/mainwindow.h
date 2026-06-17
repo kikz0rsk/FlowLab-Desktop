@@ -5,10 +5,10 @@
 #include <QMessageBox>
 #include <QStandardItemModel>
 #include <thread>
-#include <tls_page.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
-#include "sockets.h"
+#include "tls_page.h"
+#include "../sockets.h"
 
 class DnsPage;
 class ConnectionsPage;
