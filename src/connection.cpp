@@ -235,7 +235,7 @@ void Connection::logToFile() {
 	std::uint32_t length{};
 	char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
 	std::istringstream stream(buf);
-	Json::Value json;
+	nlohmann::json json;
 	stream >> json;
 
 	this->fileWriter->writeConnectionLog(

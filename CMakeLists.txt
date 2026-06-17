@@ -13,7 +13,7 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
 find_package(botan CONFIG REQUIRED)
-find_package(jsoncpp CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
@@ -124,7 +124,7 @@ target_link_libraries(network-analyzer-gui PUBLIC
         pcap
         OpenSSL::Crypto OpenSSL::SSL
         ndpi
-        JsonCpp::JsonCpp
+        nlohmann_json::nlohmann_json
 )
 
 if (WIN32)

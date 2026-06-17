@@ -1,7 +1,7 @@
 #pragma once
 
 #include <iomanip>
-#include <json/json.h>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <pcapplusplus/PcapFileDevice.h>
 
@@ -9,7 +9,6 @@ class FileWriter {
 	std::optional<pcpp::PcapNgFileWriterDevice> pcapWriter;
 	std::ofstream connLog;
 	std::string filename;
-	Json::StreamWriterBuilder jsonWriter;
 
 	public:
 		explicit FileWriter() {
@@ -26,7 +25,6 @@ class FileWriter {
 			if (!connLog.is_open()) {
 				throw std::runtime_error("Failed to open connection log file for writing");
 			}
-			jsonWriter["indentation"] = "";
 		}
 
 		void writeConnectionLog(
@@ -43,9 +41,9 @@ class FileWriter {
 			uint64_t packetsSent,
 			uint64_t packetsReceived,
 			std::set<std::string> domains,
-			const Json::Value& ndpiResponse
+			const nlohmann::json& ndpiResponse
 		) {
-			Json::Value json;
+			nlohmann::json json;
 			json["connStartTime"] = connStartTime;
 			json["connCloseTime"] = connCloseTime;
 			json["clientIp"] = clientIp;
@@ -58,14 +56,15 @@ class FileWriter {
 			json["bytesReceived"] = bytesReceived;
 			json["packetsSent"] = packetsSent;
 			json["packetsReceived"] = packetsReceived;
-			Json::Value domainArray(Json::arrayValue);
+
+			nlohmann::json domainArray;
 			for (const auto& domain : domains) {
-				domainArray.append(domain);
+				domainArray.push_back(domain);
 			}
 			json["domains"] = domainArray;
 			json["ndpiResponse"] = ndpiResponse;
 
-			connLog << Json::writeString(jsonWriter, json) << std::endl;
+			connLog << json.dump() << std::endl;
 		}
 
 		void writePacket(const pcpp::RawPacket &packet) {
