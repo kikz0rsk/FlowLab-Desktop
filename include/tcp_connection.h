@@ -34,7 +34,6 @@ class TcpConnection : public Connection {
 
 		std::vector<uint8_t> tlsBuffer{};
 		std::string serverNameIndication{};
-		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
 		std::string tlsRelayStatus = "Unknown";
 		uint16_t clientHandshakeRecordSize = 0;
@@ -42,9 +41,11 @@ class TcpConnection : public Connection {
 		std::string lastTag;
 		std::string filePath;
 
+		boost::asio::ip::tcp::socket destSocket;
+
 	public:
 		TcpConnection(
-			std::weak_ptr<ProxyService> proxyService,
+			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			const pcpp::IPAddress &src_ip,
 			const pcpp::IPAddress &dst_ip,
@@ -63,15 +64,15 @@ class TcpConnection : public Connection {
 
 		void sendSynAck();
 
-		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
+		boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
-		void openSocket();
+		boost::asio::awaitable<void> openSocket();
 
 		void sendAck();
 
-		void sendDataToRemote(std::span<const uint8_t> data) override;
+		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
-		std::vector<uint8_t> read() override;
+		boost::asio::awaitable<std::vector<uint8_t>> read() override;
 
 		void writeEvent() override;
 

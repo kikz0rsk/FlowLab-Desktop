@@ -1,55 +1,62 @@
 #pragma once
 
 #include <queue>
-#include <utility>
 #include <vector>
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <pcapplusplus/IpAddress.h>
+#include <pcapplusplus/SystemUtils.h>
 #include <botan/tls_server.h>
 
-#include "sockets.h"
+class ProxyService;
+class UdpConnection;
+class TcpConnection;
+class ConnectionManager;
 
-class Client {
-	SOCKET clientSocket;
+class Client : public std::enable_shared_from_this<Client> {
+	std::shared_ptr<ProxyService> proxyService;
+	std::shared_ptr<ConnectionManager> connectionManager;
+	boost::asio::ip::tcp::socket clientSocket;
 	pcpp::IPAddress clientIp;
 	uint16_t port;
 	std::queue<std::vector<uint8_t>> unencryptedQueueToDevice;
 	std::vector<uint8_t> unencryptedQueueFromDevice;
 	std::vector<uint8_t> encryptedQueueToDevice;
 	std::shared_ptr<Botan::TLS::Server> tlsConnection;
+	bool outgoingDrainActive = false;
 
 	public:
-		Client(SOCKET clientSocket, pcpp::IPAddress clientIp, uint16_t port) : clientSocket(clientSocket), clientIp(clientIp), port(port) {}
-		~Client() = default;
+		Client(
+			boost::asio::ip::tcp::socket clientSocket,
+			pcpp::IPAddress clientIp,
+			uint16_t port
+		);
 
-		[[nodiscard]] SOCKET getClientSocket() const {
-			return clientSocket;
-		}
+		~Client();
 
-		[[nodiscard]] const pcpp::IPAddress & getClientIp() const {
-			return clientIp;
-		}
+		void handleClient();
 
-		[[nodiscard]] std::queue<std::vector<uint8_t>>& getUnencryptedQueueToDevice() {
-			return unencryptedQueueToDevice;
-		}
+		boost::asio::awaitable<void> decryptIncomingCoroutine();
 
-		void setTlsServer(std::shared_ptr<Botan::TLS::Server> tlsServer) {
-			this->tlsConnection = std::move(tlsServer);
-		}
+		bool processIncomingData();
 
-		[[nodiscard]] std::shared_ptr<Botan::TLS::Server> getTlsConnection() {
-			return tlsConnection;
-		}
+		boost::asio::awaitable<void> encryptOutgoingCoroutine();
 
-		void enqueueData(std::vector<uint8_t> data) {
-			unencryptedQueueToDevice.push(std::move(data));
-		}
+		void sendRst(pcpp::IPAddress srcIp, pcpp::IPAddress dstIp, uint16_t srcPort, uint16_t dstPort, bool isIpv6, uint32_t sequenceNumber = 0);
 
-		[[nodiscard]] std::vector<uint8_t> & getUnencryptedQueueFromDevice() {
-			return unencryptedQueueFromDevice;
-		}
+		[[nodiscard]] const boost::asio::ip::tcp::socket& getClientSocket() const;
 
-		[[nodiscard]] std::vector<uint8_t> & getEncryptedQueueToDevice() {
-			return encryptedQueueToDevice;
-		}
+		[[nodiscard]] const pcpp::IPAddress & getClientIp() const;
+
+		[[nodiscard]] std::queue<std::vector<uint8_t>>& getUnencryptedQueueToDevice();
+
+		void setTlsServer(std::shared_ptr<Botan::TLS::Server> tlsServer);
+
+		[[nodiscard]] std::shared_ptr<Botan::TLS::Server> getTlsConnection();
+
+		void enqueueData(std::vector<uint8_t> data);
+
+		[[nodiscard]] std::vector<uint8_t> & getUnencryptedQueueFromDevice();
+
+		[[nodiscard]] std::vector<uint8_t> & getEncryptedQueueToDevice();
 };

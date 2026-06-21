@@ -3,11 +3,16 @@
 #include <memory>
 #include <thread>
 #include <list>
+#include <boost/asio/awaitable.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <boost/signals2/signal.hpp>
 #include <botan/auto_rng.h>
 #include <botan/certstor.h>
+#include <botan/credentials_manager.h>
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
+#include <botan/tls_callbacks.h>
 #include <botan/tls_exceptn.h>
 #include <botan/x509path.h>
 
@@ -28,27 +33,20 @@ class ConnectionManager;
 
 class ProxyService : public std::enable_shared_from_this<ProxyService> {
 	public:
+		static constexpr int DEFAULT_PORT = 20'000;
+
 		class ServerCallbacks : public Botan::TLS::Callbacks {
 			protected:
 				Client& client;
+
 			public:
-				explicit ServerCallbacks(Client& client) : client(client) {}
+				explicit ServerCallbacks(Client& client);
 
-				void tls_emit_data(std::span<const uint8_t> data) override {
-					ZoneScoped;
-					// Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
-					client.getEncryptedQueueToDevice().insert(client.getEncryptedQueueToDevice().end(), data.begin(), data.end());
-				}
+				void tls_emit_data(std::span<const uint8_t> data) override;
 
-				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override {
-					ZoneScoped;
-					// Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
-					client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
-				}
+				void tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) override;
 
-				void tls_alert(Botan::TLS::Alert alert) override {
-					Logger::get().log("TLS alert: " + alert.type_string());
-				}
+				void tls_alert(Botan::TLS::Alert alert) override;
 
 				void tls_verify_cert_chain(
 					const std::vector<Botan::X509_Certificate> &cert_chain,
@@ -57,29 +55,7 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 					Botan::Usage_Type usage,
 					std::string_view hostname,
 					const Botan::TLS::Policy &policy
-				) override {
-					if(cert_chain.empty()) {
-						throw Botan::Invalid_Argument("Certificate chain was empty");
-					}
-
-					Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
-
-					Botan::Path_Validation_Result result = x509_path_validate(
-						cert_chain,
-						restrictions,
-						trusted_roots,
-						hostname,
-						usage,
-						tls_current_timestamp(),
-						tls_verify_cert_chain_ocsp_timeout(),
-						ocsp_responses
-					);
-
-					if(!result.successful_validation()) {
-						Logger::get().log("Certificate validation failure: " + result.result_string());
-						throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
-					}
-				}
+				) override;
 		};
 
 		class ServerCredentials : public Botan::Credentials_Manager {
@@ -94,50 +70,40 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 					std::shared_ptr<Botan::X509_Certificate> serverCert,
 					std::shared_ptr<Botan::X509_Certificate> caCert,
 					std::shared_ptr<Botan::Private_Key> serverKey
-				) :
-					serverCert(std::move(serverCert)),
-					caCert(std::move(caCert)),
-					serverKey(std::move(serverKey)) {
-					caCertStore.add_certificate(*this->caCert);
-				}
+				);
 
 				std::vector<Botan::Certificate_Store *> trusted_certificate_authorities(
 					const std::string& type,
 					const std::string& context
-				) override {
-					return {&caCertStore};
-				}
+				) override;
 
 				std::vector<Botan::X509_Certificate> cert_chain(
 					const std::vector<std::string>& cert_key_types,
 					const std::vector<Botan::AlgorithmIdentifier>& cert_signature_schemes,
 					const std::string& type,
 					const std::string& context
-				) override {
-					return {*serverCert, *caCert};
-				}
+				) override;
 
 				std::shared_ptr<Botan::Private_Key> private_key_for(
 					const Botan::X509_Certificate& cert,
 					const std::string& type,
 					const std::string& context
-				) override {
-					return serverKey;
-				}
+				) override;
 		};
 
 		static std::shared_ptr<Botan::Private_Key> tlsProxyKey;
 
 	protected:
-		std::list<std::shared_ptr<Client>> clients;
+		boost::asio::io_context ioContext;
+		std::optional<boost::asio::ip::tcp::acceptor> tcpAcceptor;
 
-		std::thread thread;
-		SOCKET serverSocket6{};
+		std::list<std::shared_ptr<Client>> clients;
+		std::jthread thread;
 		std::atomic_bool stopFlag = false;
 		std::atomic_bool running = false;
 		std::shared_ptr<ConnectionManager> connections;
 		std::shared_ptr<FileWriter> fileWriter;
-		ndpi::ndpi_detection_module_struct *ndpiStruct;
+		ndpi::ndpi_detection_module_struct *ndpi;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::atomic_bool enableTlsRelay = true;
 		boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)> deviceConnectionSignal;
@@ -165,15 +131,14 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		[[nodiscard]] bool isRunning() const;
 
 	protected:
-		void threadRoutine();
-		void acceptClient6();
-		void selectLoop();
-		static void readTlsData(std::shared_ptr<Client> client);
+		boost::asio::awaitable<void>  acceptLoop();
+		void acceptClient(boost::asio::ip::tcp::socket socket);
 
 		bool sendFromDevice(std::shared_ptr<Client> client);
 		void cleanUpAfterClient(std::shared_ptr<Client> client);
 
 	public:
+		boost::asio::io_context& getIoContext();
 		void setEnableTlsRelay(bool enable);
 		[[nodiscard]] bool getEnableTlsRelay() const;
 };

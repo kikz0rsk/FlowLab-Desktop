@@ -10,8 +10,10 @@
 #include "remote_socket_status.h"
 #include "socket_utils.h"
 #include "file_writer.h"
+#include "proxy_service.h"
 
 Connection::Connection(
+	std::shared_ptr<ProxyService> proxyService,
 	std::shared_ptr<Client> client,
 	pcpp::IPAddress src_ip,
 	pcpp::IPAddress dst_ip,
@@ -20,6 +22,7 @@ Connection::Connection(
 	Protocol protocol,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) :
+	proxyService(proxyService),
 	srcIp(src_ip),
 	dstIp(dst_ip),
 	srcPort(src_port),
@@ -137,10 +140,6 @@ void Connection::setRemoteSocketStatus(RemoteSocketStatus status) {
 	remoteSocketStatus = status;
 }
 
-SOCKET Connection::getSocket() const {
-	return socket;
-}
-
 const std::deque<uint8_t> &Connection::getDataStream() const {
 	return dataStream;
 }
@@ -201,11 +200,6 @@ unsigned long long Connection::getOrderNum() const {
 
 void Connection::setOrderNum(unsigned long long order_num) {
 	orderNum = order_num;
-}
-
-void Connection::closeSocketAndInvalidate() {
-	closeSocket(socket);
-	socket = 0;
 }
 
 std::atomic_uint64_t Connection::getSentPacketCount() const {

@@ -33,6 +33,8 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		};
 
 	protected:
+		std::shared_ptr<ProxyService> proxyService;
+
 		unsigned long long orderNum{};
 		pcpp::IPAddress srcIp;
 		pcpp::IPAddress dstIp;
@@ -42,7 +44,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		std::chrono::system_clock::time_point connStartTime = std::chrono::system_clock::now();
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
-		SOCKET socket{};
+
 		std::deque<uint8_t> dataStream{};
 		sockaddr_in originSockAddr{};
 		unsigned int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
@@ -65,6 +67,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 	public:
 		Connection(
+			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			pcpp::IPAddress src_ip,
 			pcpp::IPAddress dst_ip,
@@ -76,11 +79,11 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		virtual ~Connection() = default;
 
-		virtual void processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
+		virtual boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
 
-		virtual void sendDataToRemote(std::span<const uint8_t> data) = 0;
+		virtual boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) = 0;
 
-		virtual std::vector<uint8_t> read() = 0;
+		virtual boost::asio::awaitable<std::vector<uint8_t>> read() = 0;
 
 		virtual void writeEvent() {}
 
@@ -128,8 +131,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		void setRemoteSocketStatus(RemoteSocketStatus status);
 
-		[[nodiscard]] SOCKET getSocket() const;
-
 		[[nodiscard]] const std::deque<uint8_t> &getDataStream() const;
 
 		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
@@ -155,8 +156,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		[[nodiscard]] unsigned long long getOrderNum() const;
 
 		void setOrderNum(unsigned long long order_num);
-
-		void closeSocketAndInvalidate();
 
 		[[nodiscard]] std::atomic_uint64_t getSentPacketCount() const;
 

@@ -54,6 +54,7 @@ set(PROJECT_SOURCES
         src/packet_utils.cpp
         src/dns_manager.cpp
         src/sockets.cpp
+        src/client.cpp
 
         mainwindow.ui
         logswindow.ui

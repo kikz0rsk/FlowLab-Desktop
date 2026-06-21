@@ -1,12 +1,16 @@
 #pragma once
 
 #include <vector>
+#include <boost/asio/ip/udp.hpp>
 
 #include "connection.h"
 
 class UdpConnection : public Connection {
+	boost::asio::ip::udp::socket destSocket;
+
 	public:
 		UdpConnection(
+			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			pcpp::IPAddress src_ip,
 			pcpp::IPAddress dst_ip,
@@ -17,15 +21,15 @@ class UdpConnection : public Connection {
 
 		~UdpConnection() override;
 
-		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
+		boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
-		void openSocket();
+		boost::asio::awaitable<void> openSocket();
 
-		void sendDataToRemote(std::span<const uint8_t> data) override;
+		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
 		void gracefullyCloseRemoteSocket() override;
 
-		std::vector<uint8_t> read() override;
+		boost::asio::awaitable<std::vector<uint8_t>> read() override;
 
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 

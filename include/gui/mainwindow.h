@@ -7,6 +7,7 @@
 #include <thread>
 #include <pcapplusplus/PcapFileDevice.h>
 
+#include "proxy_service.h"
 #include "tls_page.h"
 #include "../sockets.h"
 
@@ -53,25 +54,29 @@ class MainWindow : public QMainWindow
 		boost::signals2::connection deviceConnectionSlot;
 		std::unique_ptr<QMessageBox> errorMessage;
 
-		static void readExactly(SOCKET socket, char *buffer, int length);
+	protected:
+		void closeEvent(QCloseEvent *event) override {
+			QMainWindow::closeEvent(event);
+			proxyService->stop();
+		}
 
 	public:
 		[[nodiscard]] std::shared_ptr<DnsManager> getDnsManager() const {
-			return dnsManager;
-		}
+				return dnsManager;
+			}
 
-		[[nodiscard]] std::shared_ptr<ProxyService> getProxyService() const {
-			return proxyService;
-		}
+			[[nodiscard]] std::shared_ptr<ProxyService> getProxyService() const {
+				return proxyService;
+			}
 
-		[[nodiscard]] DnsPage * getDnsPage() const {
-			return dnsPage;
-		}
+			[[nodiscard]] DnsPage * getDnsPage() const {
+				return dnsPage;
+			}
 
-		[[nodiscard]] ConnectionsPage * getConnectionsPage() const {
-			return connectionsPage;
-		}
+			[[nodiscard]] ConnectionsPage * getConnectionsPage() const {
+				return connectionsPage;
+			}
 
-		void showEvent(QShowEvent *event) override;
+			void showEvent(QShowEvent *event) override;
 };
 #endif// MAINWINDOW_H

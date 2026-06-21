@@ -4,6 +4,8 @@
 #include <iostream>
 #include <utility>
 #include <regex>
+#include <boost/asio/use_awaitable.hpp>
+#include <boost/asio/write.hpp>
 
 #include <pcapplusplus/IPv4Layer.h>
 #include <pcapplusplus/PacketUtils.h>
@@ -21,15 +23,15 @@
 #include "connection_manager.h"
 
 TcpConnection::TcpConnection(
-	std::weak_ptr<ProxyService> proxyService,
+	std::shared_ptr<ProxyService> proxyService,
 	std::shared_ptr<Client> client,
 	const pcpp::IPAddress &src_ip,
 	const pcpp::IPAddress &dst_ip,
 	uint16_t src_port,
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
-) :
-	Connection(std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct), proxyService(proxyService) {}
+) : Connection(std::move(proxyService), std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct),
+		destSocket(proxyService->getIoContext()) {}
 
 TcpConnection::~TcpConnection() {
 	TcpConnection::gracefullyCloseRemoteSocket();
@@ -67,8 +69,8 @@ void TcpConnection::gracefullyCloseRemoteSocket() {
 		return;
 	}
 
-	shutdown(socket, SD_BOTH);
-	closeSocketAndInvalidate();
+	this->destSocket.shutdown(boost::asio::socket_base::shutdown_both);
+	this->destSocket.close();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	logToFile();
 }
@@ -119,7 +121,7 @@ void TcpConnection::sendSynAck() {
 	sendToDeviceSocket(packet);
 }
 
-void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
+boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	ZoneScoped;
 	auto tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
 	auto packetSequenceNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->sequenceNumber);
@@ -127,34 +129,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		log("Waiting for connection to be established: " + tcpLayer->toString());
 
-		auto dstIpStr = dstIp.toString();
-		int res;
-		if (isIpv6()) {
-			sockaddr_in6 destSockAddr{};
-			destSockAddr.sin6_family = AF_INET6;
-			destSockAddr.sin6_port = htons(dstPort);
-			inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
-			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
-		} else {
-			sockaddr_in destSockAddr{};
-			destSockAddr.sin_family = AF_INET;
-			destSockAddr.sin_port = htons(dstPort);
-			destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
-			res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
-		}
-		const auto errCode = getLastSocketError();
-		if (res == SOCKET_ERROR) {
-			if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
-				log("In progress");
-			} else if (errCode == WSAEISCONN) {
-				log("Connected");
-				writeEvent();
-			} else {
-				log("Connect failed: " + std::to_string(getLastSocketError()));
-			}
-		}
-
-		return;
+		co_return;
 	}
 
 	processDpi(networkLayer->getDataPtr(0), networkLayer->getDataLen());
@@ -162,27 +137,21 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
 		if (this->tcpStatus == TcpStatus::SYN_RECEIVED) {
-			openSocket();
+			co_await openSocket();
 
-			return;
+			co_return;
 		}
 		if (this->tcpStatus != TcpStatus::CLOSED) {
-			return;
+			co_return;
 		}
 		resetState();
-		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && !this->proxyService.expired() && this->proxyService.lock()->getEnableTlsRelay();
+		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && this->proxyService && this->proxyService->getEnableTlsRelay();
 
 		ackNumber = packetSequenceNumber + 1;
 		std::random_device rd;
 		std::mt19937 gen(rd());
 		std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
 		ourSequenceNumber = distrib(gen);
-
-		// if (this->dstPort == 443) {
-		// 	sendRst(true);
-		//
-		// 	return;
-		// }
 
 		setTcpStatus(TcpStatus::SYN_RECEIVED);
 
@@ -197,9 +166,9 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		}
 		remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
 
-		openSocket();
+		co_await openSocket();
 
-		return;
+		co_return;
 	}
 
 	remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * windowSizeMultiplier;
@@ -225,7 +194,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		if (tcpLayer->getTcpHeader()->rstFlag == 1) {
 			forcefullyCloseAll();
 
-			return;
+			co_return;
 		}
 
 		log(
@@ -236,7 +205,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 		);
 		sendAck();
 
-		return;
+		co_return;
 	}
 
 	const size_t dataSize = tcpLayer->getLayerPayloadSize();
@@ -270,7 +239,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 						}
 					}
 					initTlsClient();
-					if (auto proxyService = this->proxyService.lock()) {
+					if (this->proxyService) {
 						proxyService->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
 					}
 				}
@@ -282,7 +251,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 				this->serverTlsForwarder->getServer()->received_data(span);
 			}
 		} else {
-			sendDataToRemote(span);
+			co_await sendDataToRemote(span);
 		}
 	}
 
@@ -295,7 +264,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	if (tcpLayer->getTcpHeader()->rstFlag == 1) {
 		forcefullyCloseAll();
 
-		return;
+		co_return;
 	}
 
 	if (tcpLayer->getTcpHeader()->finFlag == 1) {
@@ -306,7 +275,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 			setTcpStatus(TcpStatus::CLOSED);
 			gracefullyCloseRemoteSocket();
 
-			return;
+			co_return;
 		} else if (tcpStatus == TcpStatus::ESTABLISHED) {
 			log("Remote side is initiating TCP close");
 			if (unAckedBytes > 0) {
@@ -321,7 +290,7 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 				setTcpStatus(TcpStatus::CLOSE_WAIT);
 			}
 
-			return;
+			co_return;
 		}
 	}
 
@@ -336,105 +305,30 @@ void TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	}
 }
 
-void TcpConnection::openSocket() {
+boost::asio::awaitable<void> TcpConnection::openSocket() {
 	ZoneScoped;
 	if (remoteSocketStatus == RemoteSocketStatus::ESTABLISHED) {
 		gracefullyCloseRemoteSocket();
 	}
 
-	if (isIpv6()) {
-		socket = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-	} else {
-		socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	}
-
-	if (socket == INVALID_SOCKET) {
-		std::cerr << "socket() failed: " << getLastSocketError() << std::endl;
-		sendRst(true);
-		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
-		setTcpStatus(TcpStatus::CLOSED);
-		socket = 0;
-
-		return;
-	}
-
-	int res;
-	if (isIpv6()) {
-		sockaddr_in6 addr{};
-		addr.sin6_family = AF_INET6;
-		addr.sin6_port = htons(0);
-		addr.sin6_addr = in6addr_any;
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
-	} else {
-		sockaddr_in addr{};
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(0);
-		addr.sin_addr.s_addr = INADDR_ANY;
-		res = bind(socket, (SOCKADDR *) &addr, sizeof(addr));
-	}
-
-	if (res == SOCKET_ERROR) {
-		std::cerr << "bind() failed: " << getLastSocketError() << std::endl;
-		sendRst(true);
-		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
-		setTcpStatus(TcpStatus::CLOSED);
-		closeSocketAndInvalidate();
-
-		return;
-	}
-
-	constexpr bool nodelay = true;
-	setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char *>(&nodelay), sizeof(nodelay));
-	u_long mode = 1;// Non-blocking mode
-	ioctlSocket(socket, FIONBIO, &mode);
-
-	auto dstIpStr = dstIp.toString();
-
-	if (isIpv6()) {
-		sockaddr_in6 destSockAddr{};
-		destSockAddr.sin6_family = AF_INET6;
-		destSockAddr.sin6_port = htons(dstPort);
-		inet_pton(AF_INET6, dstIpStr.c_str(), &destSockAddr.sin6_addr);
-		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
-		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
-	} else {
-		sockaddr_in destSockAddr{};
-		destSockAddr.sin_family = AF_INET;
-		destSockAddr.sin_port = htons(dstPort);
-		destSockAddr.sin_addr.s_addr = inet_addr(dstIpStr.c_str());
-		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
-		res = connect(socket, (SOCKADDR *) &destSockAddr, sizeof(destSockAddr));
-	}
-
-	if (res == SOCKET_ERROR) {
-		const auto errCode = getLastSocketError();
-		if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
-			return;
-		}
-		if (errCode == WSAEISCONN) {
-			if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
-				setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
-				sendSynAck();
-				ourSequenceNumber += 1;
-				connStartTime = std::chrono::system_clock::now();
-			}
-
-			return;
-		}
-		if (errCode == WSAEALREADY) {
-			return;
-		}
-
-		Logger::get().log("connect() failed: " + std::to_string(errCode));
-		sendRst(true);
-		setTcpStatus(TcpStatus::CLOSED);
-		gracefullyCloseRemoteSocket();
-	} else {
+	try {
+		this->remoteSocketStatus = RemoteSocketStatus::INITIATING;
+		co_await this->destSocket.async_connect(
+			boost::asio::ip::tcp::endpoint(boost::asio::ip::make_address(this->dstIp.toString()), this->dstPort),
+			boost::asio::use_awaitable
+		);
 		Logger::get().log("Connected to remote socket");
 		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 		sendSynAck();
 		ourSequenceNumber += 1;
 		connStartTime = std::chrono::system_clock::now();
+	} catch (const boost::system::system_error& err) {
+		log(std::format("Failed to connect: {}", err.what()));
+		sendRst(true);
+		gracefullyCloseRemoteSocket();
+		setTcpStatus(TcpStatus::CLOSED);
+
+		co_return;
 	}
 }
 
@@ -456,49 +350,37 @@ void TcpConnection::sendAck() {
 	sendToDeviceSocket(packet);
 }
 
-void TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
+boost::asio::awaitable<void> TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	ZoneScoped;
 	sentBytes += data.size();
-	const int res = send(socket, reinterpret_cast<const char *>(data.data()), static_cast<int>(data.size()), 0);
-	if (res != SOCKET_ERROR && res != data.size()) {
-		log("send() failed to send all data");
-		assert(false);
-	}
+	co_await boost::asio::async_write(this->destSocket, boost::asio::buffer(data), boost::asio::use_awaitable);
 }
 
-std::vector<uint8_t> TcpConnection::read() {
+boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 	ZoneScoped;
 	if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
-		return {};
+		co_return std::vector<uint8_t>{};
 	}
 
 	long long bytesToRead = static_cast<long long>(this->remoteWindowSize) - static_cast<long long>(unAckedBytes) - 2 * static_cast<long long>(maxSegmentSize);
 	if (bytesToRead <= 0) {
-		return {};
+		co_return std::vector<uint8_t>{};
 	}
 
 	bytesToRead = bytesToRead < maxSegmentSize ? bytesToRead : maxSegmentSize;
 
 	std::vector<char> buffer(bytesToRead);
 
-	u_long mode = 1;// Non-blocking mode
-	ioctlSocket(socket, FIONBIO, &mode);
-	const int length = recv(socket, buffer.data(), static_cast<int>(buffer.size()), 0);
-	const int error = getLastSocketError();
-	mode = 0;	// Blocking mode
-	ioctlSocket(socket, FIONBIO, &mode);
-
-	if (length == SOCKET_ERROR) {
-		if (error == WSAEWOULDBLOCK) {
-			return {};
-		}
-
-		log("recv() failed: " + std::to_string(error));
+	unsigned long long length;
+	try {
+		length = co_await this->destSocket.async_read_some(boost::asio::buffer(buffer, bytesToRead), boost::asio::use_awaitable);
+	} catch (const boost::system::system_error& err) {
+		log(std::format("read failed: {}", err.what()));
 		sendRst(true);
 		setTcpStatus(TcpStatus::CLOSED);
 		gracefullyCloseRemoteSocket();
 
-		return {};
+		co_return std::vector<uint8_t>{};
 	}
 
 	if (length == 0) {
@@ -508,7 +390,7 @@ std::vector<uint8_t> TcpConnection::read() {
 			tcpStatus == TcpStatus::FIN_WAIT_1
 			|| tcpStatus == TcpStatus::FIN_WAIT_2 || tcpStatus == TcpStatus::CLOSE_WAIT || shouldSendFinOnAckedEverything
 		) {
-			return {};
+			co_return std::vector<uint8_t>{};
 		}
 
 		if (unAckedBytes > 0) {
@@ -522,7 +404,7 @@ std::vector<uint8_t> TcpConnection::read() {
 			ourSequenceNumber += 1;
 		}
 
-		return {};
+		co_return std::vector<uint8_t>{};
 	}
 
 	{
@@ -536,29 +418,27 @@ std::vector<uint8_t> TcpConnection::read() {
 	if (doTlsRelay && this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
 		this->clientTlsForwarder->getClient()->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), length));
 
-		return {};
+		co_return std::vector<uint8_t>{};
 	}
 
-	return {buffer.begin(), buffer.begin() + length};
+	co_return std::vector<uint8_t>{buffer.begin(), buffer.begin() + length};
 }
 
+// TODO delete
 void TcpConnection::writeEvent() {
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
-		u_long mode = 0;// Blocking mode
-		ioctlSocket(socket, FIONBIO, &mode);
 		sendSynAck();
 		ourSequenceNumber += 1;
 		connStartTime = std::chrono::system_clock::now();
 	}
 }
 
+// TODO delete
 void TcpConnection::exceptionEvent() {
 	Logger::get().log("Exception event");
 	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		Logger::get().log("Exception event: Failed to open");
-		u_long mode = 0;// Blocking mode
-		ioctlSocket(socket, FIONBIO, &mode);
 		sendRst(true);
 		gracefullyCloseRemoteSocket();
 		setTcpStatus(TcpStatus::CLOSED);
@@ -656,12 +536,12 @@ void TcpConnection::setTcpStatus(TcpStatus tcpStatus) {
 
 void TcpConnection::forcefullyCloseAll() {
 	if (this->remoteSocketStatus != RemoteSocketStatus::CLOSED) {
-		closeSocketAndInvalidate();
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	}
 	if (this->tcpStatus != TcpStatus::CLOSED) {
 		sendRst(true);
 	}
+	this->destSocket.close();
 	setTcpStatus(TcpStatus::CLOSED);
 	logToFile();
 }
