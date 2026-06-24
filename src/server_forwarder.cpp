@@ -1,5 +1,8 @@
 #include "server_forwarder.h"
 
+#include <botan/auto_rng.h>
+#include <botan/tls_policy.h>
+#include <botan/tls_server.h>
 #include <botan/tls_session_manager_memory.h>
 #include <botan/x509_ext.h>
 

@@ -7,7 +7,6 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/signals2/signal.hpp>
-#include <botan/auto_rng.h>
 #include <botan/certstor.h>
 #include <botan/credentials_manager.h>
 #include <botan/pk_keys.h>
@@ -16,12 +15,9 @@
 #include <botan/tls_exceptn.h>
 #include <botan/x509path.h>
 
-#include <pcapplusplus/PcapFileDevice.h>
 #include <tracy/Tracy.hpp>
 
-#include "client.h"
-#include "logger.h"
-
+class Client;
 class FileWriter;
 
 namespace ndpi {
@@ -38,9 +34,10 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		class ServerCallbacks : public Botan::TLS::Callbacks {
 			protected:
 				Client& client;
+				boost::asio::io_context& ioContext;
 
 			public:
-				explicit ServerCallbacks(Client& client);
+				explicit ServerCallbacks(Client& client, boost::asio::io_context& ioContext);
 
 				void tls_emit_data(std::span<const uint8_t> data) override;
 

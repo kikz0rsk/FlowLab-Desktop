@@ -7,6 +7,7 @@
 #include <botan/tls_session_manager_memory.h>
 #include <pcapplusplus/DnsLayer.h>
 #include <boost/asio.hpp>
+#include <botan/auto_rng.h>
 
 #include "connection_manager.h"
 #include "dns_manager.h"
@@ -18,13 +19,22 @@
 #include "tcp_connection.h"
 #include "udp_connection.h"
 
-ProxyService::ServerCallbacks::ServerCallbacks(Client &client) : client(client) {}
+ProxyService::ServerCallbacks::ServerCallbacks(Client &client, boost::asio::io_context& ioContext) : client(client), ioContext(ioContext) {}
 
 void ProxyService::ServerCallbacks::tls_emit_data(std::span<const uint8_t> data) {
 	ZoneScoped;
 	// Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
 	// queue encrypted TLS data to device
 	client.getEncryptedQueueToDevice().insert(client.getEncryptedQueueToDevice().end(), data.begin(), data.end());
+	if (!client.isWriteTlsActive()) {
+		boost::asio::co_spawn(
+			this->ioContext,
+			[this]() -> boost::asio::awaitable<void> {
+				co_await this->client.writeTls();
+			},
+			boost::asio::detached
+		);
+	}
 }
 
 void ProxyService::ServerCallbacks::tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) {
@@ -32,6 +42,7 @@ void ProxyService::ServerCallbacks::tls_record_received(uint64_t seq_no, std::sp
 	// Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
 	// queue decrypted data from device
 	client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
+	client.processIncomingData();
 }
 
 void ProxyService::ServerCallbacks::tls_alert(Botan::TLS::Alert alert) {
@@ -220,8 +231,6 @@ boost::asio::awaitable<void> ProxyService::acceptLoop() {
 			co_await this->tcpAcceptor->async_accept(socket, boost::asio::use_awaitable);
 			acceptClient(std::move(socket));
 		} catch (const std::exception &e) {}
-
-		// setStatusBarMessage("Device disconnected");
 	}
 
 	co_return;
@@ -233,12 +242,12 @@ void ProxyService::acceptClient(boost::asio::ip::tcp::socket socket) {
 	auto remote = socket.remote_endpoint();
 	const std::string address = remote.address().to_string();
 
-	auto client = this->clients.emplace_back(std::make_shared<Client>(std::move(socket), pcpp::IPAddress(address), remote.port()));
+	auto client = this->clients.emplace_back(std::make_shared<Client>(weak_from_this(), std::move(socket), pcpp::IPAddress(address), remote.port()));
 	const std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
 	const std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
 	const std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>(this->serverCert, this->caCert, this->serverKey);
 	const std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
-	const std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
+	const std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client, this->ioContext);
 	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
 	client->setTlsServer(server);
 	this->deviceConnectionSignal(true, client, this->clients.size());

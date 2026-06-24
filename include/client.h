@@ -8,13 +8,15 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <botan/tls_server.h>
 
+#include "proxy_service.h"
+
 class ProxyService;
 class UdpConnection;
 class TcpConnection;
 class ConnectionManager;
 
 class Client : public std::enable_shared_from_this<Client> {
-	std::shared_ptr<ProxyService> proxyService;
+	std::weak_ptr<ProxyService> proxyService;
 	std::shared_ptr<ConnectionManager> connectionManager;
 	boost::asio::ip::tcp::socket clientSocket;
 	pcpp::IPAddress clientIp;
@@ -23,10 +25,11 @@ class Client : public std::enable_shared_from_this<Client> {
 	std::vector<uint8_t> unencryptedQueueFromDevice;
 	std::vector<uint8_t> encryptedQueueToDevice;
 	std::shared_ptr<Botan::TLS::Server> tlsConnection;
-	bool outgoingDrainActive = false;
+	bool writeTlsActive = false;
 
 	public:
 		Client(
+			std::weak_ptr<ProxyService> proxyService,
 			boost::asio::ip::tcp::socket clientSocket,
 			pcpp::IPAddress clientIp,
 			uint16_t port
@@ -36,11 +39,11 @@ class Client : public std::enable_shared_from_this<Client> {
 
 		void handleClient();
 
-		boost::asio::awaitable<void> decryptIncomingCoroutine();
+		boost::asio::awaitable<void> readTls();
 
 		bool processIncomingData();
 
-		boost::asio::awaitable<void> encryptOutgoingCoroutine();
+		boost::asio::awaitable<void> writeTls();
 
 		void sendRst(pcpp::IPAddress srcIp, pcpp::IPAddress dstIp, uint16_t srcPort, uint16_t dstPort, bool isIpv6, uint32_t sequenceNumber = 0);
 
@@ -59,4 +62,6 @@ class Client : public std::enable_shared_from_this<Client> {
 		[[nodiscard]] std::vector<uint8_t> & getUnencryptedQueueFromDevice();
 
 		[[nodiscard]] std::vector<uint8_t> & getEncryptedQueueToDevice();
+
+		[[nodiscard]] bool isWriteTlsActive() const;
 };

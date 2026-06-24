@@ -1,4 +1,5 @@
 #include <boost/asio/completion_condition.hpp>
+#include <boost/asio/write.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -11,20 +12,28 @@
 
 #include "client.h"
 
+#include <iostream>
+
 #include "connection_manager.h"
 #include "dns_manager.h"
 #include "file_writer.h"
+#include "logger.h"
 #include "protocol.h"
 #include "proxy_service.h"
 #include "tcp_connection.h"
 #include "udp_connection.h"
-
+#include "owned_parsed_packet.h"
 
 Client::Client(
+	std::weak_ptr<ProxyService> proxyService,
 	boost::asio::ip::tcp::socket clientSocket,
 	pcpp::IPAddress clientIp,
 	uint16_t port
-) : clientSocket(std::move(clientSocket)), clientIp(clientIp), port(port) {}
+) : proxyService(std::move(proxyService)),
+		connectionManager(std::make_shared<ConnectionManager>()),
+		clientSocket(std::move(clientSocket)),
+		clientIp(clientIp),
+		port(port) {}
 
 Client::~Client() = default;
 
@@ -32,32 +41,49 @@ void Client::handleClient() {
 	boost::asio::co_spawn(
 		clientSocket.get_executor(),
 		[ptr = shared_from_this()] -> boost::asio::awaitable<void> {
-			return ptr->decryptIncomingCoroutine();
-		},
-		boost::asio::detached
-	);
-	boost::asio::co_spawn(
-		clientSocket.get_executor(),
-		[ptr = shared_from_this()] -> boost::asio::awaitable<void> {
-			return ptr->encryptOutgoingCoroutine();
+			co_await ptr->readTls();
 		},
 		boost::asio::detached
 	);
 }
 
-boost::asio::awaitable<void> Client::decryptIncomingCoroutine() {
+boost::asio::awaitable<void> Client::readTls() {
 	while (clientSocket.is_open()) {
 		std::array<uint8_t, 16 * 1024> data{};
-		auto len = co_await clientSocket.async_read_some(boost::asio::buffer(data, data.size()), boost::asio::use_awaitable);
+		auto len = co_await clientSocket.async_read_some(boost::asio::buffer(data), boost::asio::use_awaitable);
 		if (len == 0) {
 			break;
 		}
+		std::cerr << "Received " << len << " bytes from device\n";
 		this->tlsConnection->received_data(std::span<const uint8_t>(data.data(), len));
-
-		if (!this->getUnencryptedQueueFromDevice().empty()) {
-			processIncomingData();
-		}
 	}
+}
+
+boost::asio::awaitable<void> Client::writeTls() {
+	if (this->writeTlsActive) {
+		co_return;
+	}
+
+	this->writeTlsActive = true;
+
+	while (!this->encryptedQueueToDevice.empty()) {
+		const std::vector<uint8_t> chunk(this->encryptedQueueToDevice.begin(), this->encryptedQueueToDevice.end());
+		std::size_t written = co_await boost::asio::async_write(
+			this->clientSocket,
+			boost::asio::buffer(chunk),
+			boost::asio::use_awaitable
+		);
+		std::cerr << "Sending " << written << " bytes to device\n";
+		if (written == 0) {
+			break;
+		}
+		this->encryptedQueueToDevice.erase(
+			this->encryptedQueueToDevice.begin(),
+			this->encryptedQueueToDevice.begin() + written
+		);
+	}
+
+	this->writeTlsActive = false;
 }
 
 bool Client::processIncomingData() {
@@ -90,22 +116,28 @@ bool Client::processIncomingData() {
 
 	timeval time{};
 	gettimeofday(&time, nullptr);
-	pcpp::RawPacket packet(packetBuffer.data(), totalLength, time, false, isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
-	pcpp::Packet parsedPacket(&packet);
+
+	auto packet = std::make_unique<OwnedParsedPacket>(
+		std::move(packetBuffer),
+		time,
+		isIpv6
+	);
+
+	const auto proxyServicePtr = this->proxyService.lock();
+	if (!proxyServicePtr) {
+		return true;
+	}
 
 	pcpp::IPAddress srcIp;
 	pcpp::IPAddress dstIp;
 
-	this->proxyService->getPcapWriter()->writePacket(*parsedPacket.getRawPacketReadOnly());
-	pcpp::Layer *networkLayer;
-	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer()); ipv4Layer != nullptr) {
+	proxyServicePtr->getPcapWriter()->writePacket(*packet->packet.getRawPacketReadOnly());
+	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(packet->packet.getFirstLayer()); ipv4Layer != nullptr) {
 		srcIp = ipv4Layer->getSrcIPAddress();
 		dstIp = ipv4Layer->getDstIPAddress();
-		networkLayer = ipv4Layer;
-	} else if (const auto ipv6Layer = dynamic_cast<pcpp::IPv6Layer *>(parsedPacket.getFirstLayer()); ipv6Layer != nullptr) {
+	} else if (const auto ipv6Layer = dynamic_cast<pcpp::IPv6Layer *>(packet->packet.getFirstLayer()); ipv6Layer != nullptr) {
 		srcIp = ipv6Layer->getSrcIPAddress();
 		dstIp = ipv6Layer->getDstIPAddress();
-		networkLayer = ipv6Layer;
 	} else {
 		Logger::get().log("Received packet is not IPv4 or IPv6, ignoring");
 
@@ -116,11 +148,11 @@ bool Client::processIncomingData() {
 	uint16_t dstPort{};
 	Protocol protocol = Protocol::UDP;
 
-	if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
+	if (auto tcpPacket = packet->packet.getLayerOfType<pcpp::TcpLayer>()) {
 		srcPort = tcpPacket->getSrcPort();
 		dstPort = tcpPacket->getDstPort();
 		protocol = Protocol::TCP;
-	} else if (auto udpPacket = parsedPacket.getLayerOfType<pcpp::UdpLayer>()) {
+	} else if (auto udpPacket = packet->packet.getLayerOfType<pcpp::UdpLayer>()) {
 		srcPort = udpPacket->getSrcPort();
 		dstPort = udpPacket->getDstPort();
 		protocol = Protocol::UDP;
@@ -135,14 +167,14 @@ bool Client::processIncomingData() {
 	// 		Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort)
 	// );
 
-	if (const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
-		this->proxyService->getDnsManager()->processDns(*dnsLayer);
+	if (const auto dnsLayer = packet->packet.getLayerOfType<pcpp::DnsLayer>()) {
+		proxyServicePtr->getDnsManager()->processDns(*dnsLayer);
 	}
 
 	auto connection = this->connectionManager->find(getClientIp(), srcIp, dstIp, srcPort, dstPort, protocol);
 	if (!connection) {
 		if (protocol == Protocol::TCP) {
-			if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
+			if (auto tcpPacket = packet->packet.getLayerOfType<pcpp::TcpLayer>()) {
 				if (tcpPacket->getTcpHeader()->synFlag == 0) {
 					Logger::get().log("Received non-SYN packet for non-existing connection, ignoring...");
 					sendRst(srcIp, dstIp, srcPort, dstPort, isIpv6, tcpPacket->getTcpHeader()->ackNumber);
@@ -152,53 +184,40 @@ bool Client::processIncomingData() {
 			}
 
 			connection = std::make_shared<TcpConnection>(
-				this->proxyService,
+				proxyServicePtr,
 				shared_from_this(),
 				srcIp,
 				dstIp,
 				srcPort,
 				dstPort,
-				this->proxyService->getNdpiStruct()
+				proxyServicePtr->getNdpiStruct()
 			);
 		} else {
 			connection = std::make_shared<UdpConnection>(
-				this->proxyService,
+				proxyServicePtr,
 				shared_from_this(),
 				srcIp,
 				dstIp,
 				srcPort,
 				dstPort,
-				this->proxyService->getNdpiStruct()
+				proxyServicePtr->getNdpiStruct()
 			);
 		}
 
-		connection->setPcapWriter(this->proxyService->getPcapWriter());
-		connection->setDnsManager(this->proxyService->getDnsManager());
+		connection->setPcapWriter(proxyServicePtr->getPcapWriter());
+		connection->setDnsManager(proxyServicePtr->getDnsManager());
 		this->connectionManager->addConnection(connection);
 	}
 
-	connection->processPacketFromDevice(networkLayer);
+	boost::asio::co_spawn(
+		clientSocket.get_executor(),
+		[ptr = connection, packet = std::move(packet)] -> boost::asio::awaitable<void> {
+			co_await ptr->processPacketFromDevice(packet->packet.getFirstLayer());
+		},
+		boost::asio::detached
+	);
 
 	return true;
-}
-
-boost::asio::awaitable<void> Client::encryptOutgoingCoroutine() {
-	while (clientSocket.is_open()) {
-		while (!this->unencryptedQueueToDevice.empty()) {
-			auto& data = this->unencryptedQueueToDevice.front();
-			this->tlsConnection->send(std::span<const uint8_t>(data));
-			this->unencryptedQueueToDevice.pop();
-		}
-
-		while (!this->encryptedQueueToDevice.empty()) {
-			auto& data = this->encryptedQueueToDevice.front();
-			auto len = co_await clientSocket.async_write_some(boost::asio::buffer(this->encryptedQueueToDevice), boost::asio::use_awaitable);
-			if (len == 0) {
-				break;
-			}
-			this->encryptedQueueToDevice.erase(this->encryptedQueueToDevice.begin(), this->encryptedQueueToDevice.begin() + len);
-		}
-	}
 }
 
 void Client::sendRst(pcpp::IPAddress srcIp, pcpp::IPAddress dstIp, uint16_t srcPort, uint16_t dstPort, bool isIpv6, uint32_t sequenceNumber) {
@@ -268,4 +287,8 @@ std::vector<uint8_t> & Client::getUnencryptedQueueFromDevice() {
 
 std::vector<uint8_t> & Client::getEncryptedQueueToDevice() {
 	return encryptedQueueToDevice;
+}
+
+bool Client::isWriteTlsActive() const {
+	return writeTlsActive;
 }

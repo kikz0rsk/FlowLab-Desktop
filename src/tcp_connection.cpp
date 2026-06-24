@@ -30,7 +30,7 @@ TcpConnection::TcpConnection(
 	uint16_t src_port,
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
-) : Connection(std::move(proxyService), std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct),
+) : Connection(proxyService, std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct),
 		destSocket(proxyService->getIoContext()) {}
 
 TcpConnection::~TcpConnection() {
@@ -124,6 +124,10 @@ void TcpConnection::sendSynAck() {
 boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	ZoneScoped;
 	auto tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
+	if (!tcpLayer) {
+		co_return;
+	}
+
 	auto packetSequenceNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->sequenceNumber);
 	auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
 	if (remoteSocketStatus == RemoteSocketStatus::INITIATING) {

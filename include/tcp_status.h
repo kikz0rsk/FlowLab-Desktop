@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <string>
+
 enum class TcpStatus {
 	CLOSED = 0,
 	SYN_RECEIVED,
