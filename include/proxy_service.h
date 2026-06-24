@@ -19,6 +19,8 @@
 
 class Client;
 class FileWriter;
+class Connection;
+class TcpConnection;
 
 namespace ndpi {
 	struct ndpi_detection_module_struct;
@@ -98,12 +100,13 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		std::jthread thread;
 		std::atomic_bool stopFlag = false;
 		std::atomic_bool running = false;
-		std::shared_ptr<ConnectionManager> connections;
 		std::shared_ptr<FileWriter> fileWriter;
 		ndpi::ndpi_detection_module_struct *ndpi;
 		std::shared_ptr<DnsManager> dnsManager;
 		std::atomic_bool enableTlsRelay = true;
 		boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)> deviceConnectionSignal;
+		boost::signals2::signal<void(bool, std::shared_ptr<Connection>)> connectionAddedSignal;
+		boost::signals2::signal<void(bool, std::shared_ptr<TcpConnection>)> tlsConnectionAddedSignal;
 		std::shared_ptr<Botan::X509_Certificate> serverCert;
 		std::shared_ptr<Botan::X509_Certificate> caCert;
 		std::shared_ptr<Botan::Private_Key> serverKey;
@@ -115,7 +118,13 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		void start();
 		void stop();
 
-		[[nodiscard]] std::shared_ptr<ConnectionManager> getConnectionManager() const;
+		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<Connection>)>& getConnectionAddedSignal() {
+			return connectionAddedSignal;
+		}
+
+		[[nodiscard]] boost::signals2::signal<void(bool, std::shared_ptr<TcpConnection>)>& getTlsConnectionAddedSignal() {
+			return tlsConnectionAddedSignal;
+		}
 
 		[[nodiscard]] std::shared_ptr<DnsManager> getDnsManager() const;
 
@@ -129,7 +138,8 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 
 	protected:
 		boost::asio::awaitable<void>  acceptLoop();
-		void acceptClient(boost::asio::ip::tcp::socket socket);
+
+		boost::asio::awaitable<void> handleClient(boost::asio::ip::tcp::socket socket);
 
 		bool sendFromDevice(std::shared_ptr<Client> client);
 		void cleanUpAfterClient(std::shared_ptr<Client> client);

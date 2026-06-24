@@ -37,7 +37,7 @@ class Client : public std::enable_shared_from_this<Client> {
 
 		~Client();
 
-		void handleClient();
+		boost::asio::awaitable<void> handleClient();
 
 		boost::asio::awaitable<void> readTls();
 
@@ -64,4 +64,8 @@ class Client : public std::enable_shared_from_this<Client> {
 		[[nodiscard]] std::vector<uint8_t> & getEncryptedQueueToDevice();
 
 		[[nodiscard]] bool isWriteTlsActive() const;
+
+		[[nodiscard]] std::shared_ptr<ConnectionManager> getConnectionManager() const {
+			return connectionManager;
+		}
 };

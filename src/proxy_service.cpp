@@ -112,7 +112,6 @@ std::shared_ptr<Botan::Private_Key> ProxyService::tlsProxyKey {};
 
 ProxyService::ProxyService() : ioContext(1), ndpi(ndpi::ndpi_init_detection_module(nullptr)) {
 	dnsManager = std::make_shared<DnsManager>();
-	connections = std::make_shared<ConnectionManager>();
 
 	if (ndpi == nullptr) {
 		throw std::runtime_error("Failed to initialize nDPI");
@@ -190,16 +189,14 @@ void ProxyService::stop() {
 	if (thread.joinable()) {
 		thread.join();
 	}
-	for (auto& conn : connections->getConnections()) {
-		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
-			continue;
+	for (const auto& client : clients) {
+		for (auto& conn : client->getConnectionManager()->getConnections()) {
+			if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+				continue;
+			}
+			conn.second->gracefullyCloseRemoteSocket();
 		}
-		conn.second->gracefullyCloseRemoteSocket();
 	}
-}
-
-std::shared_ptr<ConnectionManager> ProxyService::getConnectionManager() const {
-	return connections;
 }
 
 std::shared_ptr<DnsManager> ProxyService::getDnsManager() const {
@@ -229,20 +226,38 @@ boost::asio::awaitable<void> ProxyService::acceptLoop() {
 		try {
 			boost::asio::ip::tcp::socket socket(this->ioContext);
 			co_await this->tcpAcceptor->async_accept(socket, boost::asio::use_awaitable);
-			acceptClient(std::move(socket));
+			boost::asio::co_spawn(this->ioContext, [this, socket = std::move(socket)] mutable -> boost::asio::awaitable<void> {
+				co_await handleClient(std::move(socket));
+			}, boost::asio::detached);
 		} catch (const std::exception &e) {}
 	}
 
 	co_return;
 }
 
-void ProxyService::acceptClient(boost::asio::ip::tcp::socket socket) {
+boost::asio::awaitable<void> ProxyService::handleClient(boost::asio::ip::tcp::socket socket) {
 	ZoneScoped;
 
 	auto remote = socket.remote_endpoint();
 	const std::string address = remote.address().to_string();
 
 	auto client = this->clients.emplace_back(std::make_shared<Client>(weak_from_this(), std::move(socket), pcpp::IPAddress(address), remote.port()));
+
+	// Fan this client's per-connection signals up into the aggregate signals the GUI subscribes to.
+	// The slots are owned by the client's ConnectionManager signals, so they auto-disconnect when the
+	// client is destroyed. `this` (ProxyService) always outlives every client, so there is no dangling.
+	const auto connectionManager = client->getConnectionManager();
+	connectionManager->getConnectionAddedSignal().connect(
+		[this](bool added, std::shared_ptr<Connection> connection) {
+			connectionAddedSignal(added, std::move(connection));
+		}
+	);
+	connectionManager->getTlsConnectionAddedSignal().connect(
+		[this](bool added, std::shared_ptr<TcpConnection> connection) {
+			tlsConnectionAddedSignal(added, std::move(connection));
+		}
+	);
+
 	const std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
 	const std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
 	const std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>(this->serverCert, this->caCert, this->serverKey);
@@ -251,15 +266,18 @@ void ProxyService::acceptClient(boost::asio::ip::tcp::socket socket) {
 	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
 	client->setTlsServer(server);
 	this->deviceConnectionSignal(true, client, this->clients.size());
-	Logger::get().log("Accepted client from " + address);
-	client->handleClient();
+	Logger::get().log(std::format("Accepted client from {}", address));
+	co_await client->handleClient();
+	const auto itr = std::ranges::find(this->clients, client);
+	if (itr != this->clients.end()) {
+		this->clients.erase(itr);
+	}
+	cleanUpAfterClient(client);
 }
 
 void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
-	for (const auto& conn : connections->getConnections()) {
-		if (conn.second->getClient() == client) {
-			conn.second->forcefullyCloseAll();
-		}
+	for (const auto& conn : client->getConnectionManager()->getConnections()) {
+		conn.second->forcefullyCloseAll();
 	}
 	this->deviceConnectionSignal(false, client, this->clients.empty() ? 0 : this->clients.size() - 1);
 }

@@ -37,25 +37,23 @@ Client::Client(
 
 Client::~Client() = default;
 
-void Client::handleClient() {
-	boost::asio::co_spawn(
-		clientSocket.get_executor(),
-		[ptr = shared_from_this()] -> boost::asio::awaitable<void> {
-			co_await ptr->readTls();
-		},
-		boost::asio::detached
-	);
+boost::asio::awaitable<void> Client::handleClient() {
+	co_await readTls();
 }
 
 boost::asio::awaitable<void> Client::readTls() {
-	while (clientSocket.is_open()) {
-		std::array<uint8_t, 16 * 1024> data{};
-		auto len = co_await clientSocket.async_read_some(boost::asio::buffer(data), boost::asio::use_awaitable);
-		if (len == 0) {
-			break;
+	try {
+		while (clientSocket.is_open()) {
+			std::array<uint8_t, 16 * 1024> data{};
+			auto len = co_await clientSocket.async_read_some(boost::asio::buffer(data), boost::asio::use_awaitable);
+			this->tlsConnection->received_data(std::span<const uint8_t>(data.data(), len));
 		}
-		std::cerr << "Received " << len << " bytes from device\n";
-		this->tlsConnection->received_data(std::span<const uint8_t>(data.data(), len));
+	} catch (const boost::system::system_error & e) {
+		if (e.code() == boost::asio::error::eof) {
+			Logger::get().log("Client disconnected");
+		} else {
+			Logger::get().log(std::format("Error reading from client {}: {}", this->clientSocket.remote_endpoint().address().to_string(), e.what()));
+		}
 	}
 }
 
@@ -73,7 +71,6 @@ boost::asio::awaitable<void> Client::writeTls() {
 			boost::asio::buffer(chunk),
 			boost::asio::use_awaitable
 		);
-		std::cerr << "Sending " << written << " bytes to device\n";
 		if (written == 0) {
 			break;
 		}

@@ -37,7 +37,7 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	ui->connectionsList->setSortingEnabled(true);
 	ui->connectionsList->setModel(proxy);
 	this->onConnectionSignalConnection =
-		mainWindow.getProxyService()->getConnectionManager()->getConnectionAddedSignal().connect(
+		mainWindow.getProxyService()->getConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<Connection> connection) {
 				if (added) {
 					addConnection(std::move(connection));

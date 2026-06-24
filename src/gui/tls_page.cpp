@@ -40,7 +40,7 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	ui->connectionsList->setSortingEnabled(true);
 	ui->connectionsList->setModel(proxy);
 	this->onTlsConnectionSignalConnection =
-		mainWindow.getProxyService()->getConnectionManager()->getTlsConnectionAddedSignal().connect(
+		mainWindow.getProxyService()->getTlsConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<TcpConnection> connection) {
 				if (added) {
 					addConnection(std::move(connection));

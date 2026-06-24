@@ -4,6 +4,8 @@
 #include <iostream>
 #include <utility>
 #include <regex>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/write.hpp>
 
@@ -243,8 +245,8 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 						}
 					}
 					initTlsClient();
-					if (this->proxyService) {
-						proxyService->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
+					if (this->client) {
+						client->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
 					}
 				}
 			} else {
@@ -556,7 +558,10 @@ bool TcpConnection::canRemove() const {
 
 void TcpConnection::onTlsClientDataToSend(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Client] Sending " + std::to_string(data.size()) + " bytes to remote");
-	this->sendDataToRemote(data);
+	std::vector dataCopy = std::vector(data.begin(), data.end());
+	boost::asio::co_spawn(this->proxyService->getIoContext(), [this, data = std::move(dataCopy)]() -> boost::asio::awaitable<void> {
+		co_await this->sendDataToRemote(data);
+	}, boost::asio::detached);
 }
 
 void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
