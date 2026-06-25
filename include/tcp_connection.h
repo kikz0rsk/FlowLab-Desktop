@@ -6,6 +6,7 @@
 
 #include "client.h"
 #include "connection.h"
+#include "tcp_state.h"
 #include "tcp_status.h"
 
 class ProxyService;
@@ -17,16 +18,6 @@ class TcpConnection : public Connection {
 		static constexpr const char *SERVER_TAG = "SERVER>>>>>>>>>";
 		static constexpr const char *CLIENT_TAG = "CLIENT>>>>>>>>>";
 
-		unsigned int ackNumber{};
-		std::atomic_uint32_t ourSequenceNumber = 0;
-		unsigned long long ourWindowSize = 65'535;
-		unsigned long long remoteWindowSize = 65'535;
-		uint32_t finSequenceNumber = 0;
-		unsigned long long unAckedBytes = 0;
-		unsigned int lastRemoteAckedNum = 0;
-		unsigned int windowSizeMultiplier = 1;
-		bool shouldSendFinOnAckedEverything = false;
-		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
 		std::shared_ptr<ServerForwarder> serverTlsForwarder{};
 		std::shared_ptr<ClientForwarder> clientTlsForwarder{};
 		bool hasCertificate = false;
@@ -42,6 +33,8 @@ class TcpConnection : public Connection {
 		std::string filePath;
 
 		boost::asio::ip::tcp::socket destSocket;
+		TcpState tcpState{};
+		TcpStatus tcpStatus = TcpStatus::CLOSED;
 
 	public:
 		TcpConnection(
@@ -81,10 +74,6 @@ class TcpConnection : public Connection {
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
 		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
-
-		[[nodiscard]] unsigned int getAckNumber() const;
-
-		[[nodiscard]] std::atomic_uint32_t &getOurSequenceNumber();
 
 		void sendRst(bool ack = false);
 
