@@ -72,12 +72,9 @@ void TcpConnection::gracefullyCloseRemoteSocket() {
 void TcpConnection::sendFinAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
+	auto tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->finFlag = 1;
 	tcpLayer->getTcpHeader()->ackFlag = 1;
-	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
-	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	pcpp::Packet packet(80);
 	packet.addLayer(ipLayer, true);
@@ -91,12 +88,9 @@ void TcpConnection::sendFinAck() {
 void TcpConnection::sendSynAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
+	auto tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->synFlag = 1;
 	tcpLayer->getTcpHeader()->ackFlag = 1;
-	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
-	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
 	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(8));
@@ -337,11 +331,8 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 void TcpConnection::sendAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
+	auto tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
-	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
-	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	pcpp::Packet packet(80);
 	packet.addLayer(ipLayer, true);
@@ -429,12 +420,9 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
+	auto tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 	tcpLayer->getTcpHeader()->pshFlag = 1;
-	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
-	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 	auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
 
 	auto tcpPacket = std::make_unique<pcpp::Packet>(data.size() + 100);
@@ -478,14 +466,11 @@ void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 void TcpConnection::sendRst(bool ack) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
+	auto tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->rstFlag = 1;
 	if (ack) {
 		tcpLayer->getTcpHeader()->ackFlag = 1;
 	}
-	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
-	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	pcpp::Packet packet(80);
 	packet.addLayer(ipLayer, true);
@@ -700,4 +685,19 @@ void TcpConnection::logToFile() {
 		this->unencryptedFileStream.close();
 	}
 	Connection::logToFile();
+}
+
+std::unique_ptr<pcpp::TcpLayer> TcpConnection::buildTcpLayer() const {
+	auto tcpLayer = std::make_unique<pcpp::TcpLayer>(dstPort, srcPort);
+	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
+	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
+	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
+
+	return tcpLayer;
+}
+
+void TcpConnection::regexReplace(std::vector<uint8_t> &data, const std::regex &pat, const std::string &repl) {
+	std::string s(reinterpret_cast<char *>(data.data()), data.size());
+	std::string out = std::regex_replace(s, pat, repl);
+	data.assign(out.begin(), out.end());
 }

@@ -23,6 +23,7 @@ class UdpConnection : public Connection {
 
 		boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
+	private:
 		boost::asio::awaitable<void> openSocket();
 
 		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
