@@ -426,27 +426,6 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 	co_return std::vector<uint8_t>{buffer.begin(), buffer.begin() + length};
 }
 
-// TODO delete
-void TcpConnection::writeEvent() {
-	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
-		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
-		sendSynAck();
-		this->tcpState.ourSequenceNumber += 1;
-		connStartTime = std::chrono::system_clock::now();
-	}
-}
-
-// TODO delete
-void TcpConnection::exceptionEvent() {
-	Logger::get().log("Exception event");
-	if (this->remoteSocketStatus == RemoteSocketStatus::INITIATING) {
-		Logger::get().log("Exception event: Failed to open");
-		sendRst(true);
-		gracefullyCloseRemoteSocket();
-		setTcpStatus(TcpStatus::CLOSED);
-	}
-}
-
 std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 

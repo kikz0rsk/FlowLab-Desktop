@@ -67,10 +67,6 @@ class TcpConnection : public Connection {
 
 		boost::asio::awaitable<std::vector<uint8_t>> read() override;
 
-		void writeEvent() override;
-
-		void exceptionEvent() override;
-
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
 		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
