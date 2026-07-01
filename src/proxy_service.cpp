@@ -169,8 +169,8 @@ void ProxyService::start() {
 	});
 	boost::asio::co_spawn(
 		this->ioContext,
-		[this] -> boost::asio::awaitable<void> {
-			return this->acceptLoop();
+		[ptr = shared_from_this()] -> boost::asio::awaitable<void> {
+			co_await ptr->acceptLoop();
 		},
 		boost::asio::detached
 	);
@@ -226,8 +226,8 @@ boost::asio::awaitable<void> ProxyService::acceptLoop() {
 		try {
 			boost::asio::ip::tcp::socket socket(this->ioContext);
 			co_await this->tcpAcceptor->async_accept(socket, boost::asio::use_awaitable);
-			boost::asio::co_spawn(this->ioContext, [this, socket = std::move(socket)] mutable -> boost::asio::awaitable<void> {
-				co_await handleClient(std::move(socket));
+			boost::asio::co_spawn(this->ioContext, [ptr = shared_from_this(), socket = std::move(socket)] mutable -> boost::asio::awaitable<void> {
+				co_await ptr->handleClient(std::move(socket));
 			}, boost::asio::detached);
 		} catch (const std::exception &e) {}
 	}

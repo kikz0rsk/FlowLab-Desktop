@@ -79,6 +79,8 @@ class TcpConnection : public Connection {
 
 		boost::asio::awaitable<std::vector<uint8_t>> read() override;
 
+		boost::asio::awaitable<void> readLoop();
+
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
 		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
@@ -107,6 +109,8 @@ class TcpConnection : public Connection {
 
 		void initTlsClient();
 		void initTlsServer(const Botan::X509_Certificate &cert);
+
+		void forwardTlsData(std::span<const uint8_t> data, pcpp::Layer *networkLayer);
 
 		void logToFile() override;
 

@@ -5,6 +5,8 @@
 #include <pcapplusplus/UdpLayer.h>
 
 #include <utility>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <pcapplusplus/DnsLayer.h>
@@ -34,7 +36,7 @@ boost::asio::awaitable<void> UdpConnection::processPacketFromDevice(pcpp::Layer 
 		co_await openSocket();
 	}
 
-	const auto udpLayer = dynamic_cast<pcpp::UdpLayer *>(networkLayer->getNextLayer());
+	const auto* udpLayer = dynamic_cast<pcpp::UdpLayer *>(networkLayer->getNextLayer());
 	if (udpLayer == nullptr) {
 		log("Received packet is not UDP");
 
@@ -47,7 +49,7 @@ boost::asio::awaitable<void> UdpConnection::processPacketFromDevice(pcpp::Layer 
 	if (udpLayer->getLayerPayloadSize() == 0) {
 		co_await sendDataToRemote(std::span<const uint8_t>{});
 	} else {
-		const auto data = udpLayer->getLayerPayload();
+		const auto* data = udpLayer->getLayerPayload();
 		{
 			auto writeLock = getWriteLock();
 			if (dataStream.size() < 1'000'000) {
@@ -67,6 +69,10 @@ boost::asio::awaitable<void> UdpConnection::openSocket() {
 			boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(this->dstIp.toString()), this->dstPort),
 			boost::asio::use_awaitable
 		);
+
+		boost::asio::co_spawn(this->proxyService->getIoContext(), [this, ptr = shared_from_this()] -> boost::asio::awaitable<void> {
+			co_await this->readLoop();
+		}, boost::asio::detached);
 	} catch (const boost::system::system_error& err) {
 		log(std::format("Failed to connect: {}", err.what()));
 		gracefullyCloseRemoteSocket();
@@ -76,6 +82,16 @@ boost::asio::awaitable<void> UdpConnection::openSocket() {
 
 	setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 	this->connStartTime = std::chrono::system_clock::now();
+}
+
+boost::asio::awaitable<void> UdpConnection::readLoop() {
+	while (this->destSocket.is_open()) {
+		auto data = co_await read();
+		if (data.empty()) {
+			continue;
+		}
+		sendDataToDeviceSocket(data);
+	}
 }
 
 boost::asio::awaitable<void> UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
@@ -102,9 +118,16 @@ void UdpConnection::gracefullyCloseRemoteSocket() {
 
 boost::asio::awaitable<std::vector<uint8_t>> UdpConnection::read() {
 	ZoneScoped;
-	std::array<char, 16 * 1024> buffer{};
+	std::array<char, BUFFER_SIZE> buffer{};
 
-	const auto length = co_await this->destSocket.async_receive(boost::asio::buffer(buffer), boost::asio::use_awaitable);
+	unsigned long long length;
+	try {
+		length = co_await this->destSocket.async_receive(boost::asio::buffer(buffer), boost::asio::use_awaitable);
+	} catch (const boost::system::system_error& err) {
+		gracefullyCloseRemoteSocket();
+
+		co_return std::vector<uint8_t>{};
+	}
 
 	{
 		ZoneScopedN("dataStreamWrite");
@@ -121,8 +144,8 @@ boost::asio::awaitable<std::vector<uint8_t>> UdpConnection::read() {
 std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto udpLayer = new pcpp::UdpLayer(dstPort, srcPort);
-	auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
+	auto* udpLayer = new pcpp::UdpLayer(dstPort, srcPort);
+	auto* payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
 
 	auto udpPacket = std::make_unique<pcpp::Packet>(100 + data.size());
 	udpPacket->addLayer(ipLayer, true);
@@ -144,12 +167,12 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 			break;
 		}
 
-		if (const auto udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
+		if (const auto* udpLayer = packet->getLayerOfType<pcpp::UdpLayer>(); udpLayer) {
 			if (udpLayer->getDstPort() == 53 || udpLayer->getSrcPort() == 53) {
 				pcpp::RawPacket rawPacket(packet->getRawPacket()->getRawData(), packet->getRawPacket()->getRawDataLen(), timeval{}, false,
 					isIpv6() ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
-				pcpp::Packet p(&rawPacket);
-				if (const auto dnsLayer = p.getLayerOfType<pcpp::DnsLayer>(); dnsLayer) {
+				const pcpp::Packet p(&rawPacket);
+				if (const auto* dnsLayer = p.getLayerOfType<pcpp::DnsLayer>(); dnsLayer) {
 					dnsManager->processDns(*dnsLayer);
 				}
 			}

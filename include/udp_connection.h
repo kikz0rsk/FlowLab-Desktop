@@ -9,6 +9,8 @@ class UdpConnection : public Connection {
 	boost::asio::ip::udp::socket destSocket;
 
 	public:
+		static constexpr int BUFFER_SIZE = 4096;
+
 		UdpConnection(
 			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
@@ -25,6 +27,8 @@ class UdpConnection : public Connection {
 
 	private:
 		boost::asio::awaitable<void> openSocket();
+
+		boost::asio::awaitable<void> readLoop();
 
 		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 

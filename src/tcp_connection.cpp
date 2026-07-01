@@ -1,5 +1,6 @@
 #include "tcp_connection.h"
 
+#include <algorithm>
 #include <random>
 #include <iostream>
 #include <utility>
@@ -88,13 +89,13 @@ void TcpConnection::sendFinAck() {
 void TcpConnection::sendSynAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = buildTcpLayer().release();
+	auto* tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->synFlag = 1;
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 
-	pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
-	pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(8));
-	pcpp::TcpOptionBuilder noop(pcpp::TcpOptionBuilder::NopEolOptionEnumType::Nop);
+	const pcpp::TcpOptionBuilder mss(pcpp::TcpOptionEnumType::Mss, static_cast<uint16_t>(DEFAULT_MAX_SEGMENT_SIZE));
+	const pcpp::TcpOptionBuilder winScale(pcpp::TcpOptionEnumType::Window, static_cast<uint8_t>(8));
+	const pcpp::TcpOptionBuilder noop(pcpp::TcpOptionBuilder::NopEolOptionEnumType::Nop);
 
 	tcpLayer->addTcpOption(winScale);
 	tcpLayer->addTcpOption(mss);
@@ -111,13 +112,13 @@ void TcpConnection::sendSynAck() {
 
 boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	ZoneScoped;
-	auto tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
+	const auto* tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
 	if (!tcpLayer) {
 		co_return;
 	}
 
 	auto packetSequenceNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->sequenceNumber);
-	auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
+
 	if (remoteSocketStatus == RemoteSocketStatus::INITIATING) {
 		log("Waiting for connection to be established: " + tcpLayer->toString());
 
@@ -128,14 +129,10 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 	++sentPacketCount;
 
 	if (tcpLayer->getTcpHeader()->synFlag == 1) {
-		if (this->tcpStatus == TcpStatus::SYN_RECEIVED) {
-			co_await openSocket();
-
-			co_return;
-		}
 		if (this->tcpStatus != TcpStatus::CLOSED) {
 			co_return;
 		}
+
 		resetState();
 		this->doTlsRelay = pcpp::SSLLayer::isSSLPort(dstPort) && this->proxyService && this->proxyService->getEnableTlsRelay();
 
@@ -154,7 +151,7 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 
 		const auto mssOpt = tcpLayer->getTcpOption(pcpp::TcpOptionEnumType::Mss);
 		if (!mssOpt.isNull()) {
-			maxSegmentSize = pcpp::netToHost16(mssOpt.getValueAs<uint16_t>());
+			this->maxSegmentSize = pcpp::netToHost16(mssOpt.getValueAs<uint16_t>());
 		}
 		this->tcpState.remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * this->tcpState.windowSizeMultiplier;
 
@@ -166,11 +163,10 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 	this->tcpState.remoteWindowSize = pcpp::netToHost16(tcpLayer->getTcpHeader()->windowSize) * this->tcpState.windowSizeMultiplier;
 
 	if (tcpLayer->getTcpHeader()->ackFlag == 1) {
-		if (packetAckNumber >= this->tcpState.lastRemoteAckedNum) {
-			this->tcpState.lastRemoteAckedNum = packetAckNumber;
-		}
+		auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
+		this->tcpState.lastRemoteAckedNum = std::max(packetAckNumber, this->tcpState.lastRemoteAckedNum);
 		const long long unAcked = static_cast<long long>(this->tcpState.ourSequenceNumber) - static_cast<long long>(this->tcpState.lastRemoteAckedNum);
-		this->tcpState.unAckedBytes = unAcked > 0 ? unAcked : 0;
+		this->tcpState.unAckedBytes = std::max(unAcked, 0LL);
 		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
 			setTcpStatus(TcpStatus::ESTABLISHED);
 		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && this->tcpState.lastRemoteAckedNum > this->tcpState.finSequenceNumber) {
@@ -202,7 +198,7 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 
 	const size_t dataSize = tcpLayer->getLayerPayloadSize();
 	if (dataSize > 0) {
-		const auto dataPtr = tcpLayer->getLayerPayload();
+		const auto* dataPtr = tcpLayer->getLayerPayload();
 		{
 			ZoneScopedN("dataStreamWrite");
 			auto writeLock = getWriteLock();
@@ -214,34 +210,7 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 		const auto span = std::span(dataPtr, dataSize);
 
 		if (doTlsRelay) {
-			if (!hasCertificate) {
-				if (const auto sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
-					this->clientHandshakeRecordSize = pcpp::netToHost16(sslLayer->getRecordLayer()->length);
-				}
-				this->tlsBuffer.insert(this->tlsBuffer.end(), span.begin(), span.end());
-				if (this->tlsBuffer.size() >= this->clientHandshakeRecordSize) {
-					pcpp::Packet dummyPacket;
-					pcpp::SSLHandshakeLayer sslHandshakeLayer(tlsBuffer.data(), tlsBuffer.size(), nullptr, &dummyPacket);
-					if (const auto clientHello = sslHandshakeLayer.getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
-						if (const auto sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
-							serverNameIndication = sniExt->getHostName();
-							if (!serverNameIndication.empty()) {
-								domains.insert(serverNameIndication);
-							}
-						}
-					}
-					initTlsClient();
-					if (this->client) {
-						client->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
-					}
-				}
-			} else {
-				if (!this->tlsBuffer.empty()) {
-					this->serverTlsForwarder->getServer()->received_data(std::span(this->tlsBuffer.begin(), this->tlsBuffer.end()));
-					this->tlsBuffer.clear();
-				}
-				this->serverTlsForwarder->getServer()->received_data(span);
-			}
+			forwardTlsData(span, networkLayer);
 		} else {
 			co_await sendDataToRemote(span);
 		}
@@ -318,6 +287,10 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 		sendSynAck();
 		this->tcpState.ourSequenceNumber += 1;
 		connStartTime = std::chrono::system_clock::now();
+
+		boost::asio::co_spawn(this->proxyService->getIoContext(), [this, ptr = shared_from_this()] -> boost::asio::awaitable<void> {
+			co_await this->readLoop();
+		}, boost::asio::detached);
 	} catch (const boost::system::system_error& err) {
 		log(std::format("Failed to connect: {}", err.what()));
 		sendRst(true);
@@ -331,7 +304,7 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 void TcpConnection::sendAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = buildTcpLayer().release();
+	auto* tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 
 	pcpp::Packet packet(80);
@@ -360,7 +333,7 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 		co_return std::vector<uint8_t>{};
 	}
 
-	bytesToRead = bytesToRead < maxSegmentSize ? bytesToRead : maxSegmentSize;
+	bytesToRead = std::min(bytesToRead, static_cast<long long>(this->maxSegmentSize));
 
 	std::vector<char> buffer(bytesToRead);
 
@@ -368,16 +341,16 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 	try {
 		length = co_await this->destSocket.async_read_some(boost::asio::buffer(buffer, bytesToRead), boost::asio::use_awaitable);
 	} catch (const boost::system::system_error& err) {
-		log(std::format("read failed: {}", err.what()));
-		sendRst(true);
-		setTcpStatus(TcpStatus::CLOSED);
-		gracefullyCloseRemoteSocket();
+		if (err.code() != boost::asio::error::eof) {
+			log(std::format("read failed: {}", err.what()));
+			sendRst(true);
+			setTcpStatus(TcpStatus::CLOSED);
+			gracefullyCloseRemoteSocket();
 
-		co_return std::vector<uint8_t>{};
-	}
+			co_return std::vector<uint8_t>{};
+		}
 
-	if (length == 0) {
-		// Connection closed
+		// socket closed
 		gracefullyCloseRemoteSocket();
 		if (
 			tcpStatus == TcpStatus::FIN_WAIT_1
@@ -417,13 +390,23 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 	co_return std::vector<uint8_t>{buffer.begin(), buffer.begin() + length};
 }
 
+boost::asio::awaitable<void> TcpConnection::readLoop() {
+	while (this->destSocket.is_open()) {
+		const auto data = co_await this->read();
+		if (data.empty()) {
+			continue;
+		}
+		sendDataToDeviceSocket(data);
+	}
+}
+
 std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = buildTcpLayer().release();
+	auto* tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 	tcpLayer->getTcpHeader()->pshFlag = 1;
-	auto payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
+	auto* payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
 
 	auto tcpPacket = std::make_unique<pcpp::Packet>(data.size() + 100);
 	tcpPacket->addLayer(ipLayer, true);
@@ -439,7 +422,7 @@ void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 	ZoneScoped;
 
 	size_t offset = 0;
-	unsigned int maxSegmentSize = this->maxSegmentSize < DEFAULT_MAX_SEGMENT_SIZE ? this->maxSegmentSize : DEFAULT_MAX_SEGMENT_SIZE;
+	unsigned int maxSegmentSize = std::min(this->maxSegmentSize, DEFAULT_MAX_SEGMENT_SIZE);
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + maxSegmentSize, data.size()) - offset;
 		const bool isLast = offset + length == data.size();
@@ -466,7 +449,7 @@ void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 void TcpConnection::sendRst(bool ack) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = buildTcpLayer().release();
+	auto* tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->rstFlag = 1;
 	if (ack) {
 		tcpLayer->getTcpHeader()->ackFlag = 1;
@@ -651,6 +634,41 @@ void TcpConnection::initTlsServer(const Botan::X509_Certificate &cert) {
 			this->onTlsServerSuccess();
 		}
 	);
+}
+
+void TcpConnection::forwardTlsData(std::span<const uint8_t> data, pcpp::Layer *networkLayer) {
+	if (this->hasCertificate) {
+		// just forward the data
+		if (!this->tlsBuffer.empty()) {
+			this->serverTlsForwarder->getServer()->received_data(std::span(this->tlsBuffer.begin(), this->tlsBuffer.end()));
+			this->tlsBuffer.clear();
+		}
+		this->serverTlsForwarder->getServer()->received_data(data);
+
+		return;
+	}
+
+	// init the tls forwarder
+	if (const auto* sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
+		this->clientHandshakeRecordSize = pcpp::netToHost16(sslLayer->getRecordLayer()->length);
+	}
+	this->tlsBuffer.insert(this->tlsBuffer.end(), data.begin(), data.end());
+	if (this->tlsBuffer.size() >= this->clientHandshakeRecordSize) {
+		pcpp::Packet dummyPacket;
+		const pcpp::SSLHandshakeLayer sslHandshakeLayer(tlsBuffer.data(), tlsBuffer.size(), nullptr, &dummyPacket);
+		if (const auto* clientHello = sslHandshakeLayer.getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
+			if (const auto* sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
+				serverNameIndication = sniExt->getHostName();
+				if (!serverNameIndication.empty()) {
+					domains.insert(serverNameIndication);
+				}
+			}
+		}
+		initTlsClient();
+		if (this->client) {
+			client->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
+		}
+	}
 }
 
 const std::string & TcpConnection::getServerNameIndication() {
