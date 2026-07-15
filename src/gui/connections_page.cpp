@@ -1,12 +1,12 @@
-#include "connections_page.h"
+#include "gui/connections_page.h"
 
 #include <utility>
 
-#include "syntax_highlighter.h"
+#include "gui/syntax_highlighter.h"
 #include "ui_connections_page.h"
 #include "ndpi.h"
 #include "tcp_connection.h"
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 
 ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	QWidget(parent), mainWindow(mainWindow), ui(new Ui::ConnectionsPage) {
@@ -37,7 +37,7 @@ ConnectionsPage::ConnectionsPage(MainWindow& mainWindow, QWidget *parent) :
 	ui->connectionsList->setSortingEnabled(true);
 	ui->connectionsList->setModel(proxy);
 	this->onConnectionSignalConnection =
-		mainWindow.getProxyService()->getConnectionManager()->getConnectionAddedSignal().connect(
+		mainWindow.getProxyService()->getConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<Connection> connection) {
 				if (added) {
 					addConnection(std::move(connection));

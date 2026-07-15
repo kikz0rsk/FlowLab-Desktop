@@ -4,7 +4,7 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
-#include "connection_manager.h"
+#include "../connection_manager.h"
 #include "ui_tls_page.h"
 
 struct DnsEntry;

@@ -1,12 +1,18 @@
 #pragma once
 
 #include <vector>
+#include <boost/asio/ip/udp.hpp>
 
 #include "connection.h"
 
 class UdpConnection : public Connection {
+	boost::asio::ip::udp::socket destSocket;
+
 	public:
+		static constexpr int BUFFER_SIZE = 4096;
+
 		UdpConnection(
+			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			pcpp::IPAddress src_ip,
 			pcpp::IPAddress dst_ip,
@@ -17,21 +23,24 @@ class UdpConnection : public Connection {
 
 		~UdpConnection() override;
 
-		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
+		boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) override;
 
-		void openSocket();
+	private:
+		boost::asio::awaitable<void> openSocket();
 
-		void sendDataToRemote(std::span<const uint8_t> data) override;
+		boost::asio::awaitable<void> readLoop();
 
-		void gracefullyCloseRemoteSocket() override;
+		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
-		std::vector<uint8_t> read() override;
+		void closeSocketSoft() override;
+
+		boost::asio::awaitable<void> read() override;
 
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
+		void sendDataToDevice(std::span<const uint8_t> data) override;
 
-		void forcefullyCloseAll() override;
+		void closeAllForce() override;
 
 		[[nodiscard]] bool canRemove() const override;
 };

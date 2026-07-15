@@ -10,8 +10,10 @@
 #include "remote_socket_status.h"
 #include "socket_utils.h"
 #include "file_writer.h"
+#include "proxy_service.h"
 
 Connection::Connection(
+	std::shared_ptr<ProxyService> proxyService,
 	std::shared_ptr<Client> client,
 	pcpp::IPAddress src_ip,
 	pcpp::IPAddress dst_ip,
@@ -20,6 +22,7 @@ Connection::Connection(
 	Protocol protocol,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) :
+	proxyService(proxyService),
 	srcIp(src_ip),
 	dstIp(dst_ip),
 	srcPort(src_port),
@@ -34,9 +37,7 @@ Connection::Connection(
 	);
 }
 
-void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
-	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
-
+void Connection::sendToDevice(const pcpp::Packet &packet) {
 	pcpp::RawPacket rawPacket(packet.getRawPacket()->getRawData(),
 		packet.getRawPacket()->getRawDataLen(),
 		packet.getRawPacket()->getPacketTimeStamp(),
@@ -56,7 +57,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		);
 	} catch (const std::exception &e) {
 		log("failed to send data, closing connection");
-		forcefullyCloseAll();
+		closeAllForce();
 	}
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());
@@ -137,10 +138,6 @@ void Connection::setRemoteSocketStatus(RemoteSocketStatus status) {
 	remoteSocketStatus = status;
 }
 
-SOCKET Connection::getSocket() const {
-	return socket;
-}
-
 const std::deque<uint8_t> &Connection::getDataStream() const {
 	return dataStream;
 }
@@ -203,11 +200,6 @@ void Connection::setOrderNum(unsigned long long order_num) {
 	orderNum = order_num;
 }
 
-void Connection::closeSocketAndInvalidate() {
-	closeSocket(socket);
-	socket = 0;
-}
-
 std::atomic_uint64_t Connection::getSentPacketCount() const {
 	return sentPacketCount.load();
 }
@@ -235,7 +227,7 @@ void Connection::logToFile() {
 	std::uint32_t length{};
 	char *buf = ndpi::ndpi_serializer_get_buffer(ndpiSerializer.get(), &length);
 	std::istringstream stream(buf);
-	Json::Value json;
+	nlohmann::json json;
 	stream >> json;
 
 	this->fileWriter->writeConnectionLog(

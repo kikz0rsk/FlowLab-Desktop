@@ -8,6 +8,10 @@
 
 #include "proxy_service.h"
 
+namespace Botan::TLS {
+	class Server;
+}
+
 class ServerForwarderCredentials : public Botan::Credentials_Manager {
 	public:
 		std::shared_ptr<Botan::Private_Key> generatedKey;

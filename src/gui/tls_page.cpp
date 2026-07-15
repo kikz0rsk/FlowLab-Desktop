@@ -1,11 +1,11 @@
-#include "tls_page.h"
+#include "gui/tls_page.h"
 
 #include <utility>
 
-#include "syntax_highlighter.h"
+#include "gui/syntax_highlighter.h"
 #include "ui_tls_page.h"
 #include "tcp_connection.h"
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 #include "ndpi.h"
 #include "proxy_service.h"
 
@@ -40,7 +40,7 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 	ui->connectionsList->setSortingEnabled(true);
 	ui->connectionsList->setModel(proxy);
 	this->onTlsConnectionSignalConnection =
-		mainWindow.getProxyService()->getConnectionManager()->getTlsConnectionAddedSignal().connect(
+		mainWindow.getProxyService()->getTlsConnectionAddedSignal().connect(
 			[this](bool added, std::shared_ptr<TcpConnection> connection) {
 				if (added) {
 					addConnection(std::move(connection));

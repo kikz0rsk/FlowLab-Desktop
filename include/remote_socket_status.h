@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <string>
+
 enum class RemoteSocketStatus {
 	INITIATING,
 	ESTABLISHED,

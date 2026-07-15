@@ -3,13 +3,11 @@
 #include <iostream>
 #include <filesystem>
 #include <pcapplusplus/IPv4Layer.h>
-#include <pcapplusplus/IPv6Layer.h>
-#include <pcapplusplus/SystemUtils.h>
-#include <pcapplusplus/TcpLayer.h>
-#include <pcapplusplus/UdpLayer.h>
 #include <botan/pk_algs.h>
 #include <botan/tls_session_manager_memory.h>
 #include <pcapplusplus/DnsLayer.h>
+#include <boost/asio.hpp>
+#include <botan/auto_rng.h>
 
 #include "connection_manager.h"
 #include "dns_manager.h"
@@ -21,29 +19,112 @@
 #include "tcp_connection.h"
 #include "udp_connection.h"
 
-std::shared_ptr<Botan::Private_Key> ProxyService::tlsProxyKey {};
+ProxyService::ServerCallbacks::ServerCallbacks(Client &client, boost::asio::io_context& ioContext) : client(client), ioContext(ioContext) {}
 
-ProxyService::ProxyService() {
-	int res = initSockets();
-	if (res != 0) {
-		Logger::get().log("Init sockets failed: " + std::to_string(res));
+void ProxyService::ServerCallbacks::tls_emit_data(std::span<const uint8_t> data) {
+	ZoneScoped;
+	// Logger::get().log("Queueing " + std::to_string(data.size()) + " TLS bytes to client");
+	// queue encrypted TLS data to device
+	client.getEncryptedQueueToDevice().insert(client.getEncryptedQueueToDevice().end(), data.begin(), data.end());
+	if (!client.isWriteTlsActive()) {
+		boost::asio::co_spawn(
+			this->ioContext,
+			[this]() -> boost::asio::awaitable<void> {
+				co_await this->client.writeTls();
+			},
+			boost::asio::detached
+		);
+	}
+}
 
-		exit(-1);
+void ProxyService::ServerCallbacks::tls_record_received(uint64_t seq_no, std::span<const uint8_t> data) {
+	ZoneScoped;
+	// Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
+	// queue decrypted data from device
+	client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
+	while (client.processIncomingData()) {
+		// process all the buffered data
+	}
+}
+
+void ProxyService::ServerCallbacks::tls_alert(Botan::TLS::Alert alert) {
+	Logger::get().log("TLS alert: " + alert.type_string());
+}
+
+void ProxyService::ServerCallbacks::tls_verify_cert_chain(
+	const std::vector<Botan::X509_Certificate> &cert_chain,
+	const std::vector<std::optional<Botan::OCSP::Response>> &ocsp_responses,
+	const std::vector<Botan::Certificate_Store *> &trusted_roots,
+	Botan::Usage_Type usage,
+	std::string_view hostname,
+	const Botan::TLS::Policy &policy
+) {
+	if(cert_chain.empty()) {
+		throw Botan::Invalid_Argument("Certificate chain was empty");
 	}
 
+	Botan::Path_Validation_Restrictions restrictions(false, policy.minimum_signature_strength());
+
+	Botan::Path_Validation_Result result = x509_path_validate(
+		cert_chain,
+		restrictions,
+		trusted_roots,
+		hostname,
+		usage,
+		tls_current_timestamp(),
+		tls_verify_cert_chain_ocsp_timeout(),
+		ocsp_responses
+	);
+
+	if(!result.successful_validation()) {
+		Logger::get().log("Certificate validation failure: " + result.result_string());
+		throw Botan::TLS::TLS_Exception(Botan::TLS::Alert::BadCertificate, "Certificate validation failure: " + result.result_string());
+	}
+}
+
+ProxyService::ServerCredentials::ServerCredentials(
+	std::shared_ptr<Botan::X509_Certificate> serverCert,
+	std::shared_ptr<Botan::X509_Certificate> caCert,
+	std::shared_ptr<Botan::Private_Key> serverKey
+) :
+	serverCert(std::move(serverCert)),
+	caCert(std::move(caCert)),
+	serverKey(std::move(serverKey)) {
+	caCertStore.add_certificate(*this->caCert);
+}
+
+std::vector<Botan::Certificate_Store *> ProxyService::ServerCredentials::trusted_certificate_authorities(const std::string &type, const std::string &context) {
+	return {&caCertStore};
+}
+
+std::vector<Botan::X509_Certificate> ProxyService::ServerCredentials::cert_chain(
+	const std::vector<std::string> &cert_key_types,
+	const std::vector<Botan::AlgorithmIdentifier> &cert_signature_schemes,
+	const std::string &type,
+	const std::string &context
+) {
+	return {*serverCert, *caCert};
+}
+
+std::shared_ptr<Botan::Private_Key> ProxyService::ServerCredentials::private_key_for(const Botan::X509_Certificate &cert, const std::string &type, const std::string &context) {
+	return serverKey;
+}
+
+std::shared_ptr<Botan::Private_Key> ProxyService::tlsProxyKey {};
+
+ProxyService::ProxyService() : ioContext(1), ndpi(ndpi::ndpi_init_detection_module(nullptr)) {
 	dnsManager = std::make_shared<DnsManager>();
-	connections = std::make_shared<ConnectionManager>();
-	ndpiStruct = ndpi::ndpi_init_detection_module(nullptr);
-	if (ndpiStruct == nullptr) {
+
+	if (ndpi == nullptr) {
 		throw std::runtime_error("Failed to initialize nDPI");
 	}
 	ndpi::ndpi_protocol_bitmask_struct_t all{};
 	NDPI_BITMASK_SET_ALL(all);
-	res = ndpi::ndpi_set_protocol_detection_bitmask2(ndpiStruct, &all);
+	int res = ndpi::ndpi_set_protocol_detection_bitmask2(ndpi, &all);
 	if (res != 0) {
 		throw std::runtime_error("Failed to set protocol detection bitmask");
 	}
-	res = ndpi::ndpi_finalize_initialization(ndpiStruct);
+	res = ndpi::ndpi_finalize_initialization(ndpi);
 	if (res != 0) {
 		throw std::runtime_error("Failed to finalize nDPI initialization");
 	}
@@ -51,8 +132,7 @@ ProxyService::ProxyService() {
 
 ProxyService::~ProxyService() {
 	stop();
-	cleanupSockets();
-	ndpi::ndpi_exit_detection_module(ndpiStruct);
+	ndpi::ndpi_exit_detection_module(ndpi);
 }
 
 void ProxyService::start() {
@@ -79,9 +159,27 @@ void ProxyService::start() {
 		return;
 	}
 
-	thread = std::thread(
+	std::cerr << "starting" << std::endl;
+	tcpAcceptor = boost::asio::ip::tcp::acceptor(this->ioContext, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v6(), DEFAULT_PORT));
+	boost::asio::signal_set sig(this->ioContext, SIGINT, SIGTERM);
+	sig.async_wait([&](const boost::system::error_code &ec, int) {
+		if (ec) {
+			return;
+		}
+		stopFlag = true;
+		ioContext.stop();
+	});
+	boost::asio::co_spawn(
+		this->ioContext,
+		[ptr = shared_from_this()] -> boost::asio::awaitable<void> {
+			co_await ptr->acceptLoop();
+		},
+		boost::asio::detached
+	);
+
+	thread = std::jthread(
 		[this] {
-			threadRoutine();
+			this->ioContext.run();
 		}
 	);
 }
@@ -89,20 +187,18 @@ void ProxyService::start() {
 void ProxyService::stop() {
 	running = false;
 	stopFlag = true;
-	closeSocket(serverSocket6);
+	ioContext.stop();
 	if (thread.joinable()) {
 		thread.join();
 	}
-	for (auto& conn : connections->getConnections()) {
-		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
-			continue;
+	for (const auto& client : clients) {
+		for (auto& conn : client->getConnectionManager()->getConnections()) {
+			if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
+				continue;
+			}
+			conn.second->closeSocketSoft();
 		}
-		conn.second->gracefullyCloseRemoteSocket();
 	}
-}
-
-std::shared_ptr<ConnectionManager> ProxyService::getConnectionManager() const {
-	return connections;
 }
 
 std::shared_ptr<DnsManager> ProxyService::getDnsManager() const {
@@ -114,7 +210,7 @@ std::shared_ptr<FileWriter> ProxyService::getPcapWriter() const {
 }
 
 ndpi::ndpi_detection_module_struct * ProxyService::getNdpiStruct() {
-	return ndpiStruct;
+	return ndpi;
 }
 
 boost::signals2::signal<void(bool, std::shared_ptr<Client>, unsigned int)>& ProxyService::getDeviceConnectionSignal() {
@@ -125,376 +221,71 @@ bool ProxyService::isRunning() const {
 	return running.load();
 }
 
-void ProxyService::threadRoutine() {
-	serverSocket6 = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-	if (serverSocket6 == INVALID_SOCKET) {
-		std::cerr << "socket() ipv6 failed: " << getLastSocketError() << std::endl;
-
-		return;
-	}
-
-	const int opt = 0;
-	setsockopt(serverSocket6, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char *>(&opt), sizeof(opt));
-
-	sockaddr_in6 addr6{};
-	addr6.sin6_family = AF_INET6;
-	addr6.sin6_port = htons(20'000);
-	addr6.sin6_addr = in6addr_any;
-	int res = bind(serverSocket6, (SOCKADDR *) &addr6, sizeof(addr6));
-	if (res == SOCKET_ERROR) {
-		std::cerr << "bind() ipv6 failed: " << getLastSocketError() << std::endl;
-
-		return;
-	}
-
-	u_long mode = 1;	// Non-blocking mode
-	res = ioctlSocket(serverSocket6, FIONBIO, &mode);
-	if (res == SOCKET_ERROR) {
-		std::cerr << "failed to set ipv6 socket to non-blocking: " << getLastSocketError() << std::endl;
-
-		return;
-	}
-
-	res = listen(serverSocket6, 1);
-	if (res == SOCKET_ERROR) {
-		std::cerr << "listen() ipv6 failed: " << getLastSocketError() << std::endl;
-
-		return;
-	}
-
+boost::asio::awaitable<void> ProxyService::acceptLoop() {
 	// setStatusBarMessage("Socket ready on port " + std::to_string(ntohs(addr.sin_port)));
 
 	while (!stopFlag.load()) {
 		try {
-			while (!stopFlag.load()) {
-				selectLoop();
-			}
+			boost::asio::ip::tcp::socket socket(this->ioContext);
+			co_await this->tcpAcceptor->async_accept(socket, boost::asio::use_awaitable);
+			boost::asio::co_spawn(this->ioContext, [ptr = shared_from_this(), socket = std::move(socket)] mutable -> boost::asio::awaitable<void> {
+				co_await ptr->handleClient(std::move(socket));
+			}, boost::asio::detached);
 		} catch (const std::exception &e) {}
-
-		// setStatusBarMessage("Device disconnected");
 	}
+
+	co_return;
 }
 
-void ProxyService::acceptClient6() {
+boost::asio::awaitable<void> ProxyService::handleClient(boost::asio::ip::tcp::socket socket) {
 	ZoneScoped;
-	sockaddr_storage addrStorage{};
-	socklen_t addrSize = sizeof(addrStorage);
-	SOCKET clientSocket = accept(this->serverSocket6, (sockaddr *)&addrStorage, &addrSize);
-	if (clientSocket == INVALID_SOCKET) {
-		const auto errCode = getLastSocketError();
-		if (errCode == WSAEWOULDBLOCK || errCode == WSAEINPROGRESS) {
-			return;
+
+	auto remote = socket.remote_endpoint();
+	const std::string address = remote.address().to_string();
+
+	auto client = this->clients.emplace_back(std::make_shared<Client>(weak_from_this(), std::move(socket), pcpp::IPAddress(address), remote.port()));
+
+	// Fan this client's per-connection signals up into the aggregate signals the GUI subscribes to.
+	// The slots are owned by the client's ConnectionManager signals, so they auto-disconnect when the
+	// client is destroyed. `this` (ProxyService) always outlives every client, so there is no dangling.
+	const auto connectionManager = client->getConnectionManager();
+	connectionManager->getConnectionAddedSignal().connect(
+		[this](bool added, std::shared_ptr<Connection> connection) {
+			connectionAddedSignal(added, std::move(connection));
 		}
-		Logger::get().log("accept() failed: " + std::to_string(getLastSocketError()));
+	);
+	connectionManager->getTlsConnectionAddedSignal().connect(
+		[this](bool added, std::shared_ptr<TcpConnection> connection) {
+			tlsConnectionAddedSignal(added, std::move(connection));
+		}
+	);
 
-		return;
-	}
-
-	pcpp::IPAddress clientIp;
-	uint16_t port;
-	if (((sockaddr *)&addrStorage)->sa_family == AF_INET) {
-		auto addr = reinterpret_cast<sockaddr_in *>(&addrStorage);
-		clientIp = pcpp::IPAddress(std::string(inet_ntoa(addr->sin_addr)));
-		port = ntohs(addr->sin_port);
-	} else {
-		auto addr = reinterpret_cast<sockaddr_in6 *>(&addrStorage);
-		std::array<char, INET6_ADDRSTRLEN> buffer{};
-		inet_ntop(AF_INET6, &addr->sin6_addr, buffer.data(), sizeof(buffer));
-		clientIp = pcpp::IPAddress(std::string(buffer.data()));
-		port = ntohs(addr->sin6_port);
-	}
-
-	auto client = this->clients.emplace_back(std::make_shared<Client>(clientSocket, clientIp, port));
-	std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
-	std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
-	std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>(this->serverCert, this->caCert, this->serverKey);
-	std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
-	std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client);
+	const std::shared_ptr<Botan::AutoSeeded_RNG> rng = std::make_shared<Botan::AutoSeeded_RNG>();
+	const std::shared_ptr<Botan::TLS::Session_Manager_In_Memory> session_mgr = std::make_shared<Botan::TLS::Session_Manager_In_Memory>(rng);
+	const std::shared_ptr<ServerCredentials> creds = std::make_shared<ServerCredentials>(this->serverCert, this->caCert, this->serverKey);
+	const std::shared_ptr<Botan::TLS::Strict_Policy> policy = std::make_shared<Botan::TLS::Strict_Policy>();
+	const std::shared_ptr<Botan::TLS::Callbacks> callbacks = std::make_shared<ServerCallbacks>(*client, this->ioContext);
 	auto server = std::make_shared<Botan::TLS::Server>(callbacks, session_mgr, creds, policy, rng);
 	client->setTlsServer(server);
 	this->deviceConnectionSignal(true, client, this->clients.size());
-	Logger::get().log("Accepted client from " + clientIp.toString());
-}
-
-void ProxyService::selectLoop() {
-	// setStatusBarMessage("Device connected");
-	ZoneScoped;
-	fd_set readFds;
-	fd_set writeFds;
-	fd_set exceptionFds;
-	FD_ZERO(&readFds);
-	FD_ZERO(&writeFds);
-	FD_ZERO(&exceptionFds);
-
-	FD_SET(serverSocket6, &readFds);
-	for (const auto& client : clients) {
-		FD_SET(client->getClientSocket(), &readFds);
-		FD_SET(client->getClientSocket(), &writeFds);
+	Logger::get().log(std::format("Accepted client from {}", address));
+	co_await client->handleClient();
+	const auto itr = std::ranges::find(this->clients, client);
+	if (itr != this->clients.end()) {
+		this->clients.erase(itr);
 	}
-	std::vector<std::shared_ptr<Connection>> connectionsInFd{};
-	connectionsInFd.reserve(connections->getConnections().size());
-	for (const auto &conn: connections->getConnections()) {
-		if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
-			continue;
-		}
-
-		FD_SET(conn.second->getSocket(), &readFds);
-		FD_SET(conn.second->getSocket(), &writeFds);
-		FD_SET(conn.second->getSocket(), &exceptionFds);
-		connectionsInFd.emplace_back(conn.second);
-	}
-
-	TIMEVAL timeout{0, 100'000};
-	select(0, &readFds, &writeFds, &exceptionFds, &timeout);
-
-	if (FD_ISSET(serverSocket6, &readFds)) {
-		acceptClient6();
-	}
-
-	for (auto it = this->clients.begin(); it != this->clients.end();) {
-		const auto& client = *it;
-		try {
-			if (FD_ISSET(client->getClientSocket(), &readFds)) {
-				readTlsData(client);
-
-				bool multiplePackets = false;
-				do {
-					multiplePackets = sendFromDevice(client);
-				} while (multiplePackets);
-			}
-			if (FD_ISSET(client->getClientSocket(), &writeFds)) {
-				if (!client->getUnencryptedQueueToDevice().empty()) {
-					auto& data = client->getUnencryptedQueueToDevice().front();
-					client->getTlsConnection()->send(data);
-					data.clear();
-				}
-				if (!client->getEncryptedQueueToDevice().empty()) {
-					auto& data = client->getEncryptedQueueToDevice();
-					int res = SocketUtils::write(client->getClientSocket(), reinterpret_cast<char *>(data.data()), data.size());
-					if (res != SOCKET_ERROR) {
-						data.erase(data.begin(), data.begin() + res);
-						// Logger::get().log("Sent " + std::to_string(res) + " bytes to client");
-					}
-				}
-			}
-		} catch (const SocketUtils::EofException &e) {
-			Logger::get().log("Client closed connection");
-			cleanUpAfterClient(client);
-			it = clients.erase(it);
-			continue;
-		} catch (const SocketUtils::SocketError &e) {
-			Logger::get().log("Socket error: " + std::string(e.what()));
-			cleanUpAfterClient(client);
-			it = clients.erase(it);
-			continue;
-		}
-		++it;
-	}
-
-	for (auto &conn: connectionsInFd) {
-		if (FD_ISSET(conn->getSocket(), &readFds)) {
-			const auto data = conn->read();
-			if (data.empty()) {
-				continue;
-			}
-
-			conn->sendDataToDeviceSocket(data);
-		}
-		if (FD_ISSET(conn->getSocket(), &writeFds)) {
-			conn->writeEvent();
-			// Logger::get().log("Write event");
-		}
-		if (FD_ISSET(conn->getSocket(), &exceptionFds)) {
-			conn->exceptionEvent();
-		}
-	}
-}
-
-void ProxyService::readTlsData(std::shared_ptr<Client> client) {
-	ZoneScoped;
-	auto server = client->getTlsConnection();
-	std::array<char, 65535> buffer{};
-	const int bytesRead = SocketUtils::read(client->getClientSocket(), buffer.data(), buffer.size());
-	if (bytesRead == SOCKET_ERROR) {
-		const int error = getLastSocketError();
-		if (error == WSAEWOULDBLOCK) {
-			return;
-		}
-		throw SocketUtils::SocketError(error);
-	}
-	// Logger::get().log("Received " + std::to_string(bytesRead) + " TLS bytes from client");
-	server->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), bytesRead));
-}
-
-bool ProxyService::sendFromDevice(std::shared_ptr<Client> client) {
-	ZoneScoped;
-	if (client->getUnencryptedQueueFromDevice().empty()) {
-		return false;
-	}
-
-	auto& buffer = client->getUnencryptedQueueFromDevice();
-	if (buffer.size() < 20) {
-		return false;
-	}
-
-	bool isIpv6 = false;
-	int totalLength{};
-
-	if (((buffer[0] >> 4) & 0xF) == 6) {
-		isIpv6 = true;
-	}
-
-	if (isIpv6) {
-		const auto payloadLength = (buffer[4] << 8) | (buffer[5]);
-		totalLength = payloadLength + 40;
-	} else {
-		totalLength = (buffer[2] << 8) | (buffer[3]);
-	}
-
-	if (buffer.size() < totalLength) {
-		// we don't have the full packet yet
-		return false;
-	}
-
-	std::vector packetBuffer(buffer.begin(), buffer.begin() + totalLength);
-	buffer.erase(buffer.begin(), buffer.begin() + totalLength);
-
-	timeval time{};
-	gettimeofday(&time, nullptr);
-	pcpp::RawPacket packet(packetBuffer.data(), totalLength, time, false, isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4);
-	pcpp::Packet parsedPacket(&packet);
-
-	pcpp::IPAddress srcIp;
-	pcpp::IPAddress dstIp;
-
-	fileWriter->writePacket(*parsedPacket.getRawPacketReadOnly());
-	pcpp::Layer *networkLayer;
-	if (const auto ipv4Layer = dynamic_cast<pcpp::IPv4Layer *>(parsedPacket.getFirstLayer()); ipv4Layer != nullptr) {
-		srcIp = ipv4Layer->getSrcIPAddress();
-		dstIp = ipv4Layer->getDstIPAddress();
-		networkLayer = ipv4Layer;
-	} else if (const auto ipv6Layer = dynamic_cast<pcpp::IPv6Layer *>(parsedPacket.getFirstLayer()); ipv6Layer != nullptr) {
-		srcIp = ipv6Layer->getSrcIPAddress();
-		dstIp = ipv6Layer->getDstIPAddress();
-		networkLayer = ipv6Layer;
-	} else {
-		Logger::get().log("Received packet is not IPv4 or IPv6, ignoring");
-
-		return true;
-	}
-
-	uint16_t srcPort{};
-	uint16_t dstPort{};
-	Protocol protocol = Protocol::UDP;
-
-	if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
-		srcPort = tcpPacket->getSrcPort();
-		dstPort = tcpPacket->getDstPort();
-		protocol = Protocol::TCP;
-	} else if (auto udpPacket = parsedPacket.getLayerOfType<pcpp::UdpLayer>()) {
-		srcPort = udpPacket->getSrcPort();
-		dstPort = udpPacket->getDstPort();
-		protocol = Protocol::UDP;
-	} else {
-		Logger::get().log("Received unsupported transport layer");
-
-		return true;
-	}
-
-	// Logger::Logger::get().log(
-	// 	std::string("Received ") + (protocol ==
-	// 		Protocol::TCP ? "TCP" : "UDP") + " packet from " + srcIp.toString() + ":" + std::to_string(srcPort) + " to " + dstIp.toString() + ":" + std::to_string(dstPort)
-	// );
-
-	if (const auto dnsLayer = parsedPacket.getLayerOfType<pcpp::DnsLayer>()) {
-		dnsManager->processDns(*dnsLayer);
-	}
-
-	auto connection = connections->find(client->getClientIp(), srcIp, dstIp, srcPort, dstPort, protocol);
-	if (!connection) {
-		if (protocol == Protocol::TCP) {
-			if (auto tcpPacket = parsedPacket.getLayerOfType<pcpp::TcpLayer>()) {
-				if (tcpPacket->getTcpHeader()->synFlag == 0) {
-					Logger::get().log("Received non-SYN packet for non-existing connection, ignoring...");
-
-					// Send RST
-
-					pcpp::Layer *ipLayer = nullptr;
-					if (isIpv6) {
-						auto ipv6Layer = new pcpp::IPv6Layer(dstIp.getIPv6(), srcIp.getIPv6());
-						ipv6Layer->getIPv6Header()->hopLimit = 64;
-						ipv6Layer->getIPv6Header()->nextHeader = pcpp::IPProtocolTypes::PACKETPP_IPPROTO_TCP;
-						ipLayer = ipv6Layer;
-					} else {
-						auto ipv4Layer = new pcpp::IPv4Layer(dstIp.getIPv4(), srcIp.getIPv4());
-						ipv4Layer->getIPv4Header()->timeToLive = 64;
-						ipv4Layer->getIPv4Header()->protocol = pcpp::IPProtocolTypes::PACKETPP_IPPROTO_TCP;
-						ipLayer = ipv4Layer;
-					}
-
-					auto tcpLayer = new pcpp::TcpLayer(dstPort, srcPort);
-					tcpLayer->getTcpHeader()->rstFlag = 1;
-					tcpLayer->getTcpHeader()->ackNumber = 0;
-					tcpLayer->getTcpHeader()->sequenceNumber = tcpPacket->getTcpHeader()->ackNumber;
-					tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(4096);
-
-					pcpp::Packet rstPacket(50);
-					rstPacket.addLayer(ipLayer, true);
-					rstPacket.addLayer(tcpLayer, true);
-
-					rstPacket.computeCalculateFields();
-
-					pcpp::RawPacket rawPacket{};
-					rawPacket.initWithRawData(
-						rstPacket.getRawPacket()->getRawData(),
-						rstPacket.getRawPacket()->getRawDataLen(),
-						rstPacket.getRawPacket()->getPacketTimeStamp(),
-						isIpv6 ? pcpp::LINKTYPE_IPV6 : pcpp::LINKTYPE_IPV4
-					);
-
-					client->getTlsConnection()->send(rstPacket.getRawPacketReadOnly()->getRawData(), rstPacket.getRawPacketReadOnly()->getRawDataLen());
-
-					return true;
-				}
-			}
-
-			connection = std::make_shared<TcpConnection>(
-				shared_from_this(),
-				client,
-				srcIp,
-				dstIp,
-				srcPort,
-				dstPort,
-				ndpiStruct
-			);
-		} else {
-			connection = std::make_shared<UdpConnection>(
-				client,
-				srcIp,
-				dstIp,
-				srcPort,
-				dstPort,
-				ndpiStruct
-			);
-		}
-
-		connection->setPcapWriter(fileWriter);
-		connection->setDnsManager(dnsManager);
-		connections->addConnection(connection);
-	}
-
-	connection->processPacketFromDevice(networkLayer);
-
-	return true;
+	cleanUpAfterClient(client);
 }
 
 void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
-	for (const auto& conn : connections->getConnections()) {
-		if (conn.second->getClient() == client) {
-			conn.second->forcefullyCloseAll();
-		}
+	for (const auto& conn : client->getConnectionManager()->getConnections()) {
+		conn.second->closeAllForce();
 	}
 	this->deviceConnectionSignal(false, client, this->clients.empty() ? 0 : this->clients.size() - 1);
+}
+
+boost::asio::io_context & ProxyService::getIoContext() {
+	return this->ioContext;
 }
 
 void ProxyService::setEnableTlsRelay(bool enable) {

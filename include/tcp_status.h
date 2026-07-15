@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <string>
+
 enum class TcpStatus {
 	CLOSED = 0,
 	SYN_RECEIVED,
@@ -9,7 +12,7 @@ enum class TcpStatus {
 	CLOSE_WAIT
 };
 
-const std::array<std::string, 6> tcpStatusStrings = {
+constexpr std::array<std::string, 6> TCP_STATUS_STRINGS = {
 	"CLOSED",
 	"SYN_RECEIVED",
 	"ESTABLISHED",
@@ -19,12 +22,12 @@ const std::array<std::string, 6> tcpStatusStrings = {
 };
 
 inline std::string tcpStatusToString(TcpStatus status) {
-	return tcpStatusStrings.at(static_cast<size_t>(status));
+	return TCP_STATUS_STRINGS.at(static_cast<size_t>(status));
 }
 
 inline TcpStatus tcpStatusFromString(const std::string &status) {
-	for (size_t i = 0; i < tcpStatusStrings.size(); ++i) {
-		if (tcpStatusStrings[i] == status) {
+	for (size_t i = 0; i < TCP_STATUS_STRINGS.size(); ++i) {
+		if (TCP_STATUS_STRINGS[i] == status) {
 			return static_cast<TcpStatus>(i);
 		}
 	}

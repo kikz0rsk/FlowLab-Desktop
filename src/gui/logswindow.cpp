@@ -1,4 +1,4 @@
-#include "logswindow.h"
+#include "gui/logswindow.h"
 
 #include "logger.h"
 #include "ui_logswindow.h"

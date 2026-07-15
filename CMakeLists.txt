@@ -13,7 +13,7 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
 find_package(botan CONFIG REQUIRED)
-find_package(jsoncpp CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 include_directories(${PcapPlusPlus_INCLUDE_DIRS})
 include_directories(include/)
@@ -36,14 +36,14 @@ FetchContent_MakeAvailable(tracy)
 
 set(PROJECT_SOURCES
         src/main.cpp
-        src/mainwindow.cpp
-        src/logswindow.cpp
-        src/dnspage.cpp
-        src/connections_page.cpp
-        include/mainwindow.h
-        include/logswindow.h
-        include/dnspage.h
-        include/connections_page.h
+        src/gui/mainwindow.cpp
+        src/gui/logswindow.cpp
+        src/gui/dns_page.cpp
+        src/gui/connections_page.cpp
+        include/gui/mainwindow.h
+        include/gui/logswindow.h
+        include/gui/dns_page.h
+        include/gui/connections_page.h
 
         src/syntax_highlighter.cpp
         src/connection_manager.cpp
@@ -54,6 +54,7 @@ set(PROJECT_SOURCES
         src/packet_utils.cpp
         src/dns_manager.cpp
         src/sockets.cpp
+        src/client.cpp
 
         mainwindow.ui
         logswindow.ui
@@ -71,7 +72,7 @@ set(PROJECT_SOURCES
         include/logger.h
         include/ndpi.h
         include/packet_utils.h
-        include/syntax_highlighter.h
+        include/gui/syntax_highlighter.h
         include/file_writer.h
         include/dns_manager.h
         include/dns_entry.h
@@ -82,8 +83,8 @@ set(PROJECT_SOURCES
         include/client.h
         src/client_forwarder.cpp
         src/server_forwarder.cpp
-        include/tls_page.h
-        src/tls_page.cpp
+        include/gui/tls_page.h
+        src/gui/tls_page.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -124,7 +125,7 @@ target_link_libraries(network-analyzer-gui PUBLIC
         pcap
         OpenSSL::Crypto OpenSSL::SSL
         ndpi
-        JsonCpp::JsonCpp
+        nlohmann_json::nlohmann_json
 )
 
 if (WIN32)

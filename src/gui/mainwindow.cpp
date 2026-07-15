@@ -4,13 +4,13 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <QMessageBox>
 
-#include "mainwindow.h"
+#include "gui/mainwindow.h"
 
-#include "connections_page.h"
+#include "gui/connections_page.h"
 #include "./ui_mainwindow.h"
-#include "logswindow.h"
-#include "dnspage.h"
-#include "tls_page.h"
+#include "gui/logswindow.h"
+#include "gui/dns_page.h"
+#include "gui/tls_page.h"
 
 MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *parent)	:
 	QMainWindow(parent), ui(new Ui::MainWindow), proxyService(std::move(proxyService)) {
@@ -38,22 +38,6 @@ MainWindow::MainWindow(std::shared_ptr<ProxyService> proxyService, QWidget *pare
 MainWindow::~MainWindow() {
 	deviceConnectionSlot.disconnect();
 	delete ui;
-}
-
-void MainWindow::readExactly(SOCKET socket, char *buffer, int length) {
-	int currOffset = 0;
-	while (currOffset < length) {
-		const int bytesRead = recv(socket, buffer + currOffset, length - currOffset, 0);
-		if (bytesRead == 0) {
-			Logger::get().log("Connection closed");
-			throw std::runtime_error("Connection closed");
-		}
-		if (bytesRead == SOCKET_ERROR) {
-			Logger::get().log("recv() failed: " + std::to_string(getLastSocketError()));
-			throw std::runtime_error("recv() failed: " + std::to_string(getLastSocketError()));
-		}
-		currOffset += bytesRead;
-	}
 }
 
 void MainWindow::showEvent(QShowEvent *event) {

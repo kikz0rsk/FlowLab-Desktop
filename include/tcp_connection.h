@@ -6,7 +6,12 @@
 
 #include "client.h"
 #include "connection.h"
+#include "tcp_state.h"
 #include "tcp_status.h"
+
+namespace pcpp {
+	class TcpLayer;
+}
 
 class ProxyService;
 class ServerForwarder;
@@ -17,16 +22,6 @@ class TcpConnection : public Connection {
 		static constexpr const char *SERVER_TAG = "SERVER>>>>>>>>>";
 		static constexpr const char *CLIENT_TAG = "CLIENT>>>>>>>>>";
 
-		unsigned int ackNumber{};
-		std::atomic_uint32_t ourSequenceNumber = 0;
-		unsigned long long ourWindowSize = 65'535;
-		unsigned long long remoteWindowSize = 65'535;
-		uint32_t finSequenceNumber = 0;
-		unsigned long long unAckedBytes = 0;
-		unsigned int lastRemoteAckedNum = 0;
-		unsigned int windowSizeMultiplier = 1;
-		bool shouldSendFinOnAckedEverything = false;
-		std::atomic<TcpStatus> tcpStatus = TcpStatus::CLOSED;
 		std::shared_ptr<ServerForwarder> serverTlsForwarder{};
 		std::shared_ptr<ClientForwarder> clientTlsForwarder{};
 		bool hasCertificate = false;
@@ -34,7 +29,6 @@ class TcpConnection : public Connection {
 
 		std::vector<uint8_t> tlsBuffer{};
 		std::string serverNameIndication{};
-		std::weak_ptr<ProxyService> proxyService;
 		std::deque<uint8_t> unencryptedStream{};
 		std::string tlsRelayStatus = "Unknown";
 		uint16_t clientHandshakeRecordSize = 0;
@@ -42,9 +36,17 @@ class TcpConnection : public Connection {
 		std::string lastTag;
 		std::string filePath;
 
+		boost::asio::ip::tcp::socket destSocket;
+		TcpState tcpState{};
+		TcpStatus tcpStatus = TcpStatus::CLOSED;
+
+		std::atomic_bool remoteWriteInProgress = false;
+		std::mutex remoteWriteMutex;
+		std::deque<std::vector<uint8_t>> remoteWriteQueue;
+
 	public:
 		TcpConnection(
-			std::weak_ptr<ProxyService> proxyService,
+			std::shared_ptr<ProxyService> proxyService,
 			std::shared_ptr<Client> client,
 			const pcpp::IPAddress &src_ip,
 			const pcpp::IPAddress &dst_ip,
@@ -55,35 +57,37 @@ class TcpConnection : public Connection {
 
 		~TcpConnection() override;
 
+		boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) override;
+
+		std::set<std::string>& getDomains();
+
+		const std::string& getServerNameIndication();
+		const std::deque<uint8_t>& getUnencryptedStream();
+		const std::string& getTlsRelayStatus() const;
+
+	private:
+
 		void resetState();
 
-		void gracefullyCloseRemoteSocket() override;
+		void closeSocketSoft() override;
 
 		void sendFinAck();
 
 		void sendSynAck();
 
-		void processPacketFromDevice(pcpp::Layer *networkLayer) override;
-
-		void openSocket();
+		boost::asio::awaitable<void> openSocket();
 
 		void sendAck();
 
-		void sendDataToRemote(std::span<const uint8_t> data) override;
+		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
-		std::vector<uint8_t> read() override;
+		boost::asio::awaitable<void> read() override;
 
-		void writeEvent() override;
-
-		void exceptionEvent() override;
+		boost::asio::awaitable<void> readLoop();
 
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
-
-		[[nodiscard]] unsigned int getAckNumber() const;
-
-		[[nodiscard]] std::atomic_uint32_t &getOurSequenceNumber();
+		void sendDataToDevice(std::span<const uint8_t> data) override;
 
 		void sendRst(bool ack = false);
 
@@ -93,7 +97,7 @@ class TcpConnection : public Connection {
 
 		void setTcpStatus(TcpStatus tcpStatus);
 
-		void forcefullyCloseAll() override;
+		void closeAllForce() override;
 
 		[[nodiscard]] bool canRemove() const override;
 
@@ -110,13 +114,11 @@ class TcpConnection : public Connection {
 		void initTlsClient();
 		void initTlsServer(const Botan::X509_Certificate &cert);
 
-		const std::string& getServerNameIndication();
-		const std::deque<uint8_t>& getUnencryptedStream();
-		const std::string& getTlsRelayStatus() const;
-
-		std::set<std::string>& getDomains();
+		void forwardTlsData(std::span<const uint8_t> data, pcpp::Layer *networkLayer);
 
 		void logToFile() override;
+
+		std::unique_ptr<pcpp::TcpLayer> buildTcpLayer() const;
 
 		template<typename ByteT>
 		void replaceBytes(
@@ -140,13 +142,9 @@ class TcpConnection : public Connection {
 			}
 		}
 
-		void regexReplace(
+		static void regexReplace(
 			std::vector<uint8_t>& data,
 			const std::regex& pat,
 			const std::string& repl
-		) {
-			std::string s(reinterpret_cast<char *>(data.data()), data.size());
-			std::string out = std::regex_replace(s, pat, repl);
-			data.assign(out.begin(), out.end());
-		}
+		);
 };
