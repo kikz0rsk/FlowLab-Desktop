@@ -40,6 +40,10 @@ class TcpConnection : public Connection {
 		TcpState tcpState{};
 		TcpStatus tcpStatus = TcpStatus::CLOSED;
 
+		std::atomic_bool remoteWriteInProgress = false;
+		std::mutex remoteWriteMutex;
+		std::deque<std::vector<uint8_t>> remoteWriteQueue;
+
 	public:
 		TcpConnection(
 			std::shared_ptr<ProxyService> proxyService,
@@ -65,7 +69,7 @@ class TcpConnection : public Connection {
 
 		void resetState();
 
-		void gracefullyCloseRemoteSocket() override;
+		void closeSocketSoft() override;
 
 		void sendFinAck();
 
@@ -77,13 +81,13 @@ class TcpConnection : public Connection {
 
 		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
-		boost::asio::awaitable<std::vector<uint8_t>> read() override;
+		boost::asio::awaitable<void> read() override;
 
 		boost::asio::awaitable<void> readLoop();
 
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
+		void sendDataToDevice(std::span<const uint8_t> data) override;
 
 		void sendRst(bool ack = false);
 
@@ -93,7 +97,7 @@ class TcpConnection : public Connection {
 
 		void setTcpStatus(TcpStatus tcpStatus);
 
-		void forcefullyCloseAll() override;
+		void closeAllForce() override;
 
 		[[nodiscard]] bool canRemove() const override;
 

@@ -83,7 +83,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		virtual boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) = 0;
 
-		virtual boost::asio::awaitable<std::vector<uint8_t>> read() = 0;
+		virtual boost::asio::awaitable<void> read() = 0;
 
 		virtual void writeEvent() {}
 
@@ -91,15 +91,15 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		virtual std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) = 0;
 
-		virtual void sendDataToDeviceSocket(std::span<const uint8_t> data) = 0;
+		virtual void sendDataToDevice(std::span<const uint8_t> data) = 0;
 
-		virtual void sendToDeviceSocket(const pcpp::Packet &packet);
+		virtual void sendToDevice(const pcpp::Packet &packet);
 
 		void processDpi(const unsigned char *packetPtr, unsigned short packetLen);
 
 		[[nodiscard]] virtual bool canRemove() const = 0;
 
-		virtual void gracefullyCloseRemoteSocket() = 0;
+		virtual void closeSocketSoft() = 0;
 
 		[[nodiscard]] std::shared_lock<std::shared_mutex> getReadLock();
 
@@ -151,7 +151,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 
 		[[nodiscard]] std::shared_ptr<Client> getClient() const;
 
-		virtual void forcefullyCloseAll() = 0;
+		virtual void closeAllForce() = 0;
 
 		[[nodiscard]] unsigned long long getOrderNum() const;
 

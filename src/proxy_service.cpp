@@ -42,7 +42,9 @@ void ProxyService::ServerCallbacks::tls_record_received(uint64_t seq_no, std::sp
 	// Logger::get().log("Received " + std::to_string(data.size()) + " data bytes from client");
 	// queue decrypted data from device
 	client.getUnencryptedQueueFromDevice().insert(client.getUnencryptedQueueFromDevice().end(), data.begin(), data.end());
-	client.processIncomingData();
+	while (client.processIncomingData()) {
+		// process all the buffered data
+	}
 }
 
 void ProxyService::ServerCallbacks::tls_alert(Botan::TLS::Alert alert) {
@@ -194,7 +196,7 @@ void ProxyService::stop() {
 			if (conn.second->getRemoteSocketStatus() == RemoteSocketStatus::CLOSED) {
 				continue;
 			}
-			conn.second->gracefullyCloseRemoteSocket();
+			conn.second->closeSocketSoft();
 		}
 	}
 }
@@ -277,7 +279,7 @@ boost::asio::awaitable<void> ProxyService::handleClient(boost::asio::ip::tcp::so
 
 void ProxyService::cleanUpAfterClient(std::shared_ptr<Client> client) {
 	for (const auto& conn : client->getConnectionManager()->getConnections()) {
-		conn.second->forcefullyCloseAll();
+		conn.second->closeAllForce();
 	}
 	this->deviceConnectionSignal(false, client, this->clients.empty() ? 0 : this->clients.size() - 1);
 }

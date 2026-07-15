@@ -24,6 +24,7 @@
 #include "server_forwarder.h"
 #include "client_forwarder.h"
 #include "connection_manager.h"
+#include "defer.h"
 
 TcpConnection::TcpConnection(
 	std::shared_ptr<ProxyService> proxyService,
@@ -37,7 +38,7 @@ TcpConnection::TcpConnection(
 		destSocket(proxyService->getIoContext()) {}
 
 TcpConnection::~TcpConnection() {
-	TcpConnection::gracefullyCloseRemoteSocket();
+	TcpConnection::closeSocketSoft();
 }
 
 void TcpConnection::resetState() {
@@ -57,15 +58,20 @@ void TcpConnection::resetState() {
 	setTcpStatus(TcpStatus::CLOSED);
 }
 
-void TcpConnection::gracefullyCloseRemoteSocket() {
+void TcpConnection::closeSocketSoft() {
 	ZoneScoped;
 
 	if (this->remoteSocketStatus == RemoteSocketStatus::CLOSED) {
 		return;
 	}
 
-	this->destSocket.shutdown(boost::asio::socket_base::shutdown_both);
-	this->destSocket.close();
+	try {
+		this->destSocket.shutdown(boost::asio::socket_base::shutdown_both);
+		this->destSocket.close();
+	} catch (const boost::system::system_error& e) {
+		log(std::format("Error closing socket: {}", e.what()));
+	}
+
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	logToFile();
 }
@@ -73,7 +79,7 @@ void TcpConnection::gracefullyCloseRemoteSocket() {
 void TcpConnection::sendFinAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto tcpLayer = buildTcpLayer().release();
+	auto *tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->finFlag = 1;
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 
@@ -83,7 +89,7 @@ void TcpConnection::sendFinAck() {
 
 	packet.computeCalculateFields();
 
-	sendToDeviceSocket(packet);
+	sendToDevice(packet);
 }
 
 void TcpConnection::sendSynAck() {
@@ -107,13 +113,13 @@ void TcpConnection::sendSynAck() {
 
 	packet.computeCalculateFields();
 
-	sendToDeviceSocket(packet);
+	sendToDevice(packet);
 }
 
 boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	ZoneScoped;
 	const auto* tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
-	if (!tcpLayer) {
+	if (tcpLayer == nullptr) {
 		co_return;
 	}
 
@@ -140,7 +146,7 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 		std::random_device rd;
 		std::mt19937 gen(rd());
 		std::uniform_int_distribution<std::mt19937::result_type> distrib(1, std::numeric_limits<uint32_t>::max());
-		this->tcpState.ourSequenceNumber = distrib(gen);
+		this->tcpState.seqNumber = distrib(gen);
 
 		setTcpStatus(TcpStatus::SYN_RECEIVED);
 
@@ -165,38 +171,38 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 	if (tcpLayer->getTcpHeader()->ackFlag == 1) {
 		auto packetAckNumber = pcpp::netToHost32(tcpLayer->getTcpHeader()->ackNumber);
 		this->tcpState.lastRemoteAckedNum = std::max(packetAckNumber, this->tcpState.lastRemoteAckedNum);
-		const long long unAcked = static_cast<long long>(this->tcpState.ourSequenceNumber) - static_cast<long long>(this->tcpState.lastRemoteAckedNum);
+		const long long unAcked = static_cast<long long>(this->tcpState.seqNumber) - static_cast<long long>(this->tcpState.lastRemoteAckedNum);
 		this->tcpState.unAckedBytes = std::max(unAcked, 0LL);
 		if (tcpStatus == TcpStatus::SYN_RECEIVED) {
 			setTcpStatus(TcpStatus::ESTABLISHED);
-		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && this->tcpState.lastRemoteAckedNum > this->tcpState.finSequenceNumber) {
+		} else if (tcpStatus == TcpStatus::FIN_WAIT_1 && this->tcpState.lastRemoteAckedNum > this->tcpState.finSeqNumber) {
 			setTcpStatus(TcpStatus::FIN_WAIT_2);
-		} else if (tcpStatus == TcpStatus::CLOSE_WAIT && this->tcpState.lastRemoteAckedNum > this->tcpState.finSequenceNumber) {
+		} else if (tcpStatus == TcpStatus::CLOSE_WAIT && this->tcpState.lastRemoteAckedNum > this->tcpState.finSeqNumber) {
 			setTcpStatus(TcpStatus::CLOSED);
-			gracefullyCloseRemoteSocket();
+			closeSocketSoft();
 		}
 	}
 
 	if (packetSequenceNumber != this->tcpState.ackNumber) {
 		// packet is out of order
 		if (tcpLayer->getTcpHeader()->rstFlag == 1) {
-			forcefullyCloseAll();
+			closeAllForce();
 
 			co_return;
 		}
 
-		log(
-			"Received unexpected packet, this packet seq="
-			+ std::to_string(packetSequenceNumber)
-			+ ", expected="
-			+ std::to_string(this->tcpState.ackNumber)
-		);
+		log(std::format(
+			"Received unexpected packet, this packet seq={}, expected={}", packetSequenceNumber, this->tcpState.ackNumber
+		));
 		sendAck();
 
 		co_return;
 	}
 
 	const size_t dataSize = tcpLayer->getLayerPayloadSize();
+
+	this->tcpState.ackNumber = packetSequenceNumber + dataSize;
+
 	if (dataSize > 0) {
 		const auto* dataPtr = tcpLayer->getLayerPayload();
 		{
@@ -207,6 +213,8 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 			}
 		}
 
+		sendAck();
+
 		const auto span = std::span(dataPtr, dataSize);
 
 		if (doTlsRelay) {
@@ -216,14 +224,8 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 		}
 	}
 
-	this->tcpState.ackNumber = packetSequenceNumber;
-	if (dataSize > 0) {
-		this->tcpState.ackNumber += dataSize;
-		sendAck();
-	}
-
 	if (tcpLayer->getTcpHeader()->rstFlag == 1) {
-		forcefullyCloseAll();
+		closeAllForce();
 
 		co_return;
 	}
@@ -234,7 +236,7 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 			sendAck();
 
 			setTcpStatus(TcpStatus::CLOSED);
-			gracefullyCloseRemoteSocket();
+			closeSocketSoft();
 
 			co_return;
 		} else if (tcpStatus == TcpStatus::ESTABLISHED) {
@@ -242,12 +244,12 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 			if (this->tcpState.unAckedBytes > 0) {
 				this->tcpState.ackNumber += 1;
 				sendAck();
-				this->tcpState.shouldSendFinOnAckedEverything = true;
+				this->tcpState.waitingAck = true;
 			} else {
 				this->tcpState.ackNumber += 1;
 				sendFinAck();
-				this->tcpState.finSequenceNumber = this->tcpState.ourSequenceNumber;
-				this->tcpState.ourSequenceNumber += 1;
+				this->tcpState.finSeqNumber = this->tcpState.seqNumber;
+				this->tcpState.seqNumber += 1;
 				setTcpStatus(TcpStatus::CLOSE_WAIT);
 			}
 
@@ -257,23 +259,23 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 
 	if (
 		tcpLayer->getTcpHeader()->ackFlag == 1
-		&& this->tcpState.unAckedBytes == 0
-		&& this->tcpState.finSequenceNumber
+		&& this->tcpState.unAckedBytes != 0
+		&& this->tcpState.waitingAck
 		&& tcpStatus != TcpStatus::FIN_WAIT_1
 		&& tcpStatus != TcpStatus::FIN_WAIT_2
 		&& tcpStatus != TcpStatus::CLOSE_WAIT
 	) {
 		sendFinAck();
 		setTcpStatus(TcpStatus::FIN_WAIT_1);
-		this->tcpState.finSequenceNumber = this->tcpState.ourSequenceNumber;
-		this->tcpState.ourSequenceNumber += 1;
+		this->tcpState.finSeqNumber = this->tcpState.seqNumber;
+		this->tcpState.seqNumber += 1;
 	}
 }
 
 boost::asio::awaitable<void> TcpConnection::openSocket() {
 	ZoneScoped;
-	if (remoteSocketStatus == RemoteSocketStatus::ESTABLISHED) {
-		gracefullyCloseRemoteSocket();
+	if (remoteSocketStatus != RemoteSocketStatus::CLOSED) {
+		co_return;
 	}
 
 	try {
@@ -285,7 +287,7 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 		Logger::get().log("Connected to remote socket");
 		setRemoteSocketStatus(RemoteSocketStatus::ESTABLISHED);
 		sendSynAck();
-		this->tcpState.ourSequenceNumber += 1;
+		this->tcpState.seqNumber += 1;
 		connStartTime = std::chrono::system_clock::now();
 
 		boost::asio::co_spawn(this->proxyService->getIoContext(), [this, ptr = shared_from_this()] -> boost::asio::awaitable<void> {
@@ -294,7 +296,7 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 	} catch (const boost::system::system_error& err) {
 		log(std::format("Failed to connect: {}", err.what()));
 		sendRst(true);
-		gracefullyCloseRemoteSocket();
+		closeSocketSoft();
 		setTcpStatus(TcpStatus::CLOSED);
 
 		co_return;
@@ -313,64 +315,75 @@ void TcpConnection::sendAck() {
 
 	packet.computeCalculateFields();
 
-	sendToDeviceSocket(packet);
+	sendToDevice(packet);
 }
 
 boost::asio::awaitable<void> TcpConnection::sendDataToRemote(std::span<const uint8_t> data) {
 	ZoneScoped;
-	sentBytes += data.size();
-	co_await boost::asio::async_write(this->destSocket, boost::asio::buffer(data), boost::asio::use_awaitable);
+
+	this->remoteWriteQueue.emplace_back(data.begin(), data.end());
+	if (this->remoteWriteInProgress.exchange(true)) {
+		co_return;
+	}
+
+	const Defer def([this] { this->remoteWriteInProgress = false; });
+
+	while (!remoteWriteQueue.empty()) {
+		std::vector<uint8_t> nextChunk = std::move(remoteWriteQueue.front());
+		remoteWriteQueue.pop_front();
+
+		try {
+			const auto len = co_await boost::asio::async_write(
+				this->destSocket,
+				boost::asio::buffer(nextChunk),
+				boost::asio::use_awaitable
+			);
+			sentBytes += len;
+		} catch (...) {
+			break;
+		}
+	}
 }
 
-boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
+boost::asio::awaitable<void> TcpConnection::read() {
 	ZoneScoped;
-	if (remoteSocketStatus != RemoteSocketStatus::ESTABLISHED) {
-		co_return std::vector<uint8_t>{};
-	}
 
-	long long bytesToRead = static_cast<long long>(this->tcpState.remoteWindowSize) - static_cast<long long>(this->tcpState.unAckedBytes) - 2 * static_cast<long long>(maxSegmentSize);
-	if (bytesToRead <= 0) {
-		co_return std::vector<uint8_t>{};
-	}
-
-	bytesToRead = std::min(bytesToRead, static_cast<long long>(this->maxSegmentSize));
-
-	std::vector<char> buffer(bytesToRead);
+	std::vector<uint8_t> buffer(16 * 1024);
 
 	unsigned long long length;
 	try {
-		length = co_await this->destSocket.async_read_some(boost::asio::buffer(buffer, bytesToRead), boost::asio::use_awaitable);
+		length = co_await this->destSocket.async_read_some(boost::asio::buffer(buffer), boost::asio::use_awaitable);
 	} catch (const boost::system::system_error& err) {
 		if (err.code() != boost::asio::error::eof) {
 			log(std::format("read failed: {}", err.what()));
 			sendRst(true);
 			setTcpStatus(TcpStatus::CLOSED);
-			gracefullyCloseRemoteSocket();
+			closeSocketSoft();
 
-			co_return std::vector<uint8_t>{};
+			throw;
 		}
 
 		// socket closed
-		gracefullyCloseRemoteSocket();
+		closeSocketSoft();
 		if (
 			tcpStatus == TcpStatus::FIN_WAIT_1
-			|| tcpStatus == TcpStatus::FIN_WAIT_2 || tcpStatus == TcpStatus::CLOSE_WAIT || this->tcpState.finSequenceNumber
+			|| tcpStatus == TcpStatus::FIN_WAIT_2 || tcpStatus == TcpStatus::CLOSE_WAIT || this->tcpState.waitingAck
 		) {
-			co_return std::vector<uint8_t>{};
+			throw;
 		}
 
 		if (this->tcpState.unAckedBytes > 0) {
 			log("Waiting for ack on everything before closing connection");
-			this->tcpState.finSequenceNumber = true;
+			this->tcpState.waitingAck = true;
 		} else {
 			log("We are initiating TCP close");
 			sendFinAck();
 			setTcpStatus(TcpStatus::FIN_WAIT_1);
-			this->tcpState.finSequenceNumber = this->tcpState.ourSequenceNumber;
-			this->tcpState.ourSequenceNumber += 1;
+			this->tcpState.finSeqNumber = this->tcpState.seqNumber;
+			this->tcpState.seqNumber += 1;
 		}
 
-		co_return std::vector<uint8_t>{};
+		throw;
 	}
 
 	{
@@ -382,22 +395,21 @@ boost::asio::awaitable<std::vector<uint8_t>> TcpConnection::read() {
 	receivedBytes += length;
 
 	if (doTlsRelay && this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
-		this->clientTlsForwarder->getClient()->received_data(std::span(reinterpret_cast<uint8_t *>(buffer.data()), length));
+		this->clientTlsForwarder->getClient()->received_data(std::span(buffer.data(), length));
 
-		co_return std::vector<uint8_t>{};
+		co_return;
 	}
 
-	co_return std::vector<uint8_t>{buffer.begin(), buffer.begin() + length};
+	sendDataToDevice(std::span(buffer.begin(), length));
 }
 
 boost::asio::awaitable<void> TcpConnection::readLoop() {
-	while (this->destSocket.is_open()) {
-		const auto data = co_await this->read();
-		if (data.empty()) {
-			continue;
+	try {
+		while (this->destSocket.is_open()) {
+			co_await this->read();
 		}
-		sendDataToDeviceSocket(data);
-	}
+	} catch (...) {}
+	log("readLoop exited");
 }
 
 std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
@@ -418,11 +430,11 @@ std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std
 	return tcpPacket;
 }
 
-void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
+void TcpConnection::sendDataToDevice(std::span<const uint8_t> data) {
 	ZoneScoped;
 
 	size_t offset = 0;
-	unsigned int maxSegmentSize = std::min(this->maxSegmentSize, DEFAULT_MAX_SEGMENT_SIZE);
+	const unsigned int maxSegmentSize = std::min(this->maxSegmentSize, DEFAULT_MAX_SEGMENT_SIZE);
 	while (offset < data.size()) {
 		const unsigned int length = std::min(offset + maxSegmentSize, data.size()) - offset;
 		const bool isLast = offset + length == data.size();
@@ -438,9 +450,9 @@ void TcpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 		// 	"Sending to: " + originHostIp.toString() + ":" + std::to_string(originHostPort) + " " + PacketUtils::toString(*packet)
 		// );
 
-		sendToDeviceSocket(*packet);
+		sendToDevice(*packet);
 
-		this->tcpState.ourSequenceNumber += length;
+		this->tcpState.seqNumber += length;
 		this->tcpState.unAckedBytes += length;
 		offset += length;
 	}
@@ -461,7 +473,7 @@ void TcpConnection::sendRst(bool ack) {
 
 	packet.computeCalculateFields();
 
-	sendToDeviceSocket(packet);
+	sendToDevice(packet);
 }
 
 TcpStatus TcpConnection::getTcpStatus() const {
@@ -475,14 +487,17 @@ void TcpConnection::setTcpStatus(TcpStatus tcpStatus) {
 	this->tcpStatus = tcpStatus;
 }
 
-void TcpConnection::forcefullyCloseAll() {
+void TcpConnection::closeAllForce() {
 	if (this->remoteSocketStatus != RemoteSocketStatus::CLOSED) {
 		setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	}
 	if (this->tcpStatus != TcpStatus::CLOSED) {
 		sendRst(true);
 	}
-	this->destSocket.close();
+
+	try {
+		this->destSocket.close();
+	} catch (...) {}
 	setTcpStatus(TcpStatus::CLOSED);
 	logToFile();
 }
@@ -541,7 +556,7 @@ void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
 
 void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
 	Logger::get().log("[TLS Proxy Server] Sending " + std::to_string(data.size()) + " bytes to client");
-	this->sendDataToDeviceSocket(data);
+	this->sendDataToDevice(data);
 }
 
 void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
@@ -708,7 +723,7 @@ void TcpConnection::logToFile() {
 std::unique_ptr<pcpp::TcpLayer> TcpConnection::buildTcpLayer() const {
 	auto tcpLayer = std::make_unique<pcpp::TcpLayer>(dstPort, srcPort);
 	tcpLayer->getTcpHeader()->ackNumber = pcpp::hostToNet32(this->tcpState.ackNumber);
-	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.ourSequenceNumber);
+	tcpLayer->getTcpHeader()->sequenceNumber = pcpp::hostToNet32(this->tcpState.seqNumber);
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	return tcpLayer;

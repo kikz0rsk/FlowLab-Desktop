@@ -37,9 +37,7 @@ Connection::Connection(
 	);
 }
 
-void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
-	// Logger::get().log("Sending: " + PacketUtils::toString(packet));
-
+void Connection::sendToDevice(const pcpp::Packet &packet) {
 	pcpp::RawPacket rawPacket(packet.getRawPacket()->getRawData(),
 		packet.getRawPacket()->getRawDataLen(),
 		packet.getRawPacket()->getPacketTimeStamp(),
@@ -59,7 +57,7 @@ void Connection::sendToDeviceSocket(const pcpp::Packet &packet) {
 		);
 	} catch (const std::exception &e) {
 		log("failed to send data, closing connection");
-		forcefullyCloseAll();
+		closeAllForce();
 	}
 
 	processDpi(packet.getRawPacketReadOnly()->getRawData(), packet.getRawPacketReadOnly()->getRawDataLen());

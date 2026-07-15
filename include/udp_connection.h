@@ -32,15 +32,15 @@ class UdpConnection : public Connection {
 
 		boost::asio::awaitable<void> sendDataToRemote(std::span<const uint8_t> data) override;
 
-		void gracefullyCloseRemoteSocket() override;
+		void closeSocketSoft() override;
 
-		boost::asio::awaitable<std::vector<uint8_t>> read() override;
+		boost::asio::awaitable<void> read() override;
 
 		std::unique_ptr<pcpp::Packet> encapsulateResponseDataToPacket(std::span<const uint8_t> data) override;
 
-		void sendDataToDeviceSocket(std::span<const uint8_t> data) override;
+		void sendDataToDevice(std::span<const uint8_t> data) override;
 
-		void forcefullyCloseAll() override;
+		void closeAllForce() override;
 
 		[[nodiscard]] bool canRemove() const override;
 };

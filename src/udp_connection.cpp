@@ -27,7 +27,7 @@ UdpConnection::UdpConnection(
 ) : Connection(proxyService, std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::UDP, ndpiStruct), destSocket(proxyService->getIoContext()) {}
 
 UdpConnection::~UdpConnection() {
-	UdpConnection::gracefullyCloseRemoteSocket();
+	UdpConnection::closeSocketSoft();
 }
 
 boost::asio::awaitable<void> UdpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
@@ -75,7 +75,7 @@ boost::asio::awaitable<void> UdpConnection::openSocket() {
 		}, boost::asio::detached);
 	} catch (const boost::system::system_error& err) {
 		log(std::format("Failed to connect: {}", err.what()));
-		gracefullyCloseRemoteSocket();
+		closeSocketSoft();
 
 		co_return;
 	}
@@ -85,13 +85,12 @@ boost::asio::awaitable<void> UdpConnection::openSocket() {
 }
 
 boost::asio::awaitable<void> UdpConnection::readLoop() {
-	while (this->destSocket.is_open()) {
-		auto data = co_await read();
-		if (data.empty()) {
-			continue;
+	try {
+		while (this->destSocket.is_open()) {
+			co_await read();
 		}
-		sendDataToDeviceSocket(data);
-	}
+	} catch (...) {}
+	log("readLoop exited");
 }
 
 boost::asio::awaitable<void> UdpConnection::sendDataToRemote(std::span<const uint8_t> data) {
@@ -103,30 +102,35 @@ boost::asio::awaitable<void> UdpConnection::sendDataToRemote(std::span<const uin
 	);
 }
 
-void UdpConnection::gracefullyCloseRemoteSocket() {
+void UdpConnection::closeSocketSoft() {
 	ZoneScoped;
 
 	if (remoteSocketStatus == RemoteSocketStatus::CLOSED && !this->destSocket.is_open()) {
 		return;
 	}
 
-	this->destSocket.shutdown(boost::asio::socket_base::shutdown_both);
-	this->destSocket.close();
+	try {
+		this->destSocket.shutdown(boost::asio::socket_base::shutdown_both);
+		this->destSocket.close();
+	} catch (const boost::system::system_error& e) {
+		log(std::format("Error closing socket: {}", e.what()));
+	}
+
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	logToFile();
 }
 
-boost::asio::awaitable<std::vector<uint8_t>> UdpConnection::read() {
+boost::asio::awaitable<void> UdpConnection::read() {
 	ZoneScoped;
-	std::array<char, BUFFER_SIZE> buffer{};
+	std::array<uint8_t, BUFFER_SIZE> buffer{};
 
 	unsigned long long length;
 	try {
 		length = co_await this->destSocket.async_receive(boost::asio::buffer(buffer), boost::asio::use_awaitable);
 	} catch (const boost::system::system_error& err) {
-		gracefullyCloseRemoteSocket();
+		closeSocketSoft();
 
-		co_return std::vector<uint8_t>{};
+		throw;
 	}
 
 	{
@@ -138,7 +142,7 @@ boost::asio::awaitable<std::vector<uint8_t>> UdpConnection::read() {
 	}
 	receivedBytes += length;
 
-	co_return std::vector<uint8_t>{buffer.begin(), buffer.begin() + length};
+	sendDataToDevice(std::span(buffer.begin(), length));
 }
 
 std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
@@ -157,7 +161,7 @@ std::unique_ptr<pcpp::Packet> UdpConnection::encapsulateResponseDataToPacket(std
 	return udpPacket;
 }
 
-void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
+void UdpConnection::sendDataToDevice(std::span<const uint8_t> data) {
 	ZoneScoped;
 	size_t offset = 0;
 	while (offset < data.size()) {
@@ -178,14 +182,14 @@ void UdpConnection::sendDataToDeviceSocket(std::span<const uint8_t> data) {
 			}
 		}
 
-		sendToDeviceSocket(*packet);
+		sendToDevice(*packet);
 
 		offset += length;
 	}
 }
 
-void UdpConnection::forcefullyCloseAll() {
-	gracefullyCloseRemoteSocket();
+void UdpConnection::closeAllForce() {
+	closeSocketSoft();
 }
 
 bool UdpConnection::canRemove() const {
