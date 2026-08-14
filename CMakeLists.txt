@@ -34,58 +34,8 @@ FetchContent_MakeAvailable(tracy)
 
 #add_subdirectory ( lib/tracy-0.11.1 )
 
-set(PROJECT_SOURCES
-        src/main.cpp
-        src/gui/mainwindow.cpp
-        src/gui/logswindow.cpp
-        src/gui/dns_page.cpp
-        src/gui/connections_page.cpp
-        include/gui/mainwindow.h
-        include/gui/logswindow.h
-        include/gui/dns_page.h
-        include/gui/connections_page.h
-
-        src/syntax_highlighter.cpp
-        src/connection_manager.cpp
-        src/logger.cpp
-        src/connection.cpp
-        src/tcp_connection.cpp
-        src/udp_connection.cpp
-        src/packet_utils.cpp
-        src/dns_manager.cpp
-        src/sockets.cpp
-        src/client.cpp
-
-        mainwindow.ui
-        logswindow.ui
-        dnspage.ui
-        connections_page.ui
-        tls_page.ui
-
-        include/connection.h
-        include/remote_socket_status.h
-        include/tcp_status.h
-        include/udp_connection.h
-        include/protocol.h
-        include/tcp_connection.h
-        include/connection_manager.h
-        include/logger.h
-        include/ndpi.h
-        include/packet_utils.h
-        include/gui/syntax_highlighter.h
-        include/file_writer.h
-        include/dns_manager.h
-        include/dns_entry.h
-        include/socket_utils.h
-        src/socket_utils.cpp
-        include/proxy_service.h
-        src/proxy_service.cpp
-        include/client.h
-        src/client_forwarder.cpp
-        src/server_forwarder.cpp
-        include/gui/tls_page.h
-        src/gui/tls_page.cpp
-)
+file(GLOB_RECURSE IMPL_FILES LIST_DIRECTORIES false CONFIGURE_DEPENDS src/*.cpp *.ui src/gui/*.cpp)
+set(PROJECT_SOURCES ${IMPL_FILES})
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(network-analyzer-gui
@@ -109,6 +59,12 @@ else()
         )
     endif()
 endif()
+
+file(GLOB_RECURSE HEADERS LIST_DIRECTORIES false CONFIGURE_DEPENDS include/*.h include/*.hpp)
+target_sources(${PROJECT_NAME} PRIVATE FILE_SET fileSetHeader TYPE HEADERS
+        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
+        FILES ${HEADERS}
+)
 
 if (WIN32)
     target_link_directories(network-analyzer-gui PRIVATE ${CMAKE_SOURCE_DIR}/lib/lib-windows/)
