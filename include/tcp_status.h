@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include "remote_socket_status.h"
 
 enum class TcpStatus {
 	CLOSED = 0,
@@ -32,4 +33,24 @@ inline TcpStatus tcpStatusFromString(const std::string &status) {
 		}
 	}
 	throw std::invalid_argument("Invalid TCP status string");
+}
+
+inline RemoteSocketStatus tcpStatusToRemoteSocketStatus(TcpStatus tcpStatus) {
+	RemoteSocketStatus status = RemoteSocketStatus::CLOSED;
+	switch (tcpStatus) {
+		case TcpStatus::SYN_RECEIVED:
+			status = RemoteSocketStatus::INITIATING;
+			break;
+		case TcpStatus::ESTABLISHED:
+		case TcpStatus::FIN_WAIT_1:
+		case TcpStatus::FIN_WAIT_2:
+		case TcpStatus::CLOSE_WAIT:
+			status = RemoteSocketStatus::ESTABLISHED;
+			break;
+		case TcpStatus::CLOSED:
+			status = RemoteSocketStatus::CLOSED;
+			break;
+	}
+
+	return status;
 }

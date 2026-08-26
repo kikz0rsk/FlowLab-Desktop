@@ -10,12 +10,12 @@
 #include <pcapplusplus/Packet.h>
 #include <pcapplusplus/PcapFileDevice.h>
 
-#include "sockets.h"
 #include "client.h"
 #include "protocol.h"
 #include "remote_socket_status.h"
 #include "ndpi.h"
 
+class IProcessor;
 class DnsManager;
 class FileWriter;
 
@@ -45,7 +45,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		std::optional<std::chrono::system_clock::time_point> lastPacketSentTime;
 		Protocol protocol;
 
-		std::deque<uint8_t> dataStream{};
 		sockaddr_in originSockAddr{};
 		unsigned int maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
 
@@ -64,6 +63,7 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		std::shared_ptr<Client> client;
 
 		std::set<std::string> domains{};
+		std::vector<std::shared_ptr<IProcessor>> processors;
 
 	public:
 		Connection(
@@ -78,6 +78,16 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		);
 
 		virtual ~Connection() = default;
+
+		template<typename T>
+		std::shared_ptr<T> getProcessor() const {
+			auto it = std::ranges::find_if(this->processors, [&](const auto& processor) { return static_cast<bool>(std::dynamic_pointer_cast<T>(processor)); });
+			if (it != this->processors.end()) {
+				return std::dynamic_pointer_cast<T>(*it);
+			}
+
+			return {};
+		}
 
 		virtual boost::asio::awaitable<void> processPacketFromDevice(pcpp::Layer *networkLayer) = 0;
 
@@ -130,8 +140,6 @@ class Connection : public std::enable_shared_from_this<Connection> {
 		[[nodiscard]] RemoteSocketStatus getRemoteSocketStatus() const;
 
 		void setRemoteSocketStatus(RemoteSocketStatus status);
-
-		[[nodiscard]] const std::deque<uint8_t> &getDataStream() const;
 
 		[[nodiscard]] const sockaddr_in& getDestSockAddr() const;
 

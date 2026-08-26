@@ -15,47 +15,50 @@
 #include <pcapplusplus/SystemUtils.h>
 #include <pcapplusplus/TcpLayer.h>
 #include <pcapplusplus/PayloadLayer.h>
-#include <pcapplusplus/SSLHandshake.h>
 #include <pcapplusplus/SSLLayer.h>
 #include <tracy/Tracy.hpp>
 #include <botan/x509_ext.h>
 
 #include "logger.h"
 #include "server_forwarder.h"
-#include "client_forwarder.h"
 #include "connection_manager.h"
 #include "defer.h"
+#include "iprocessor.h"
+#include "log_processor.h"
+#include "tls_processor.h"
 
 TcpConnection::TcpConnection(
 	std::shared_ptr<ProxyService> proxyService,
 	std::shared_ptr<Client> client,
-	const pcpp::IPAddress &src_ip,
-	const pcpp::IPAddress &dst_ip,
+	const pcpp::IPAddress& src_ip,
+	const pcpp::IPAddress& dst_ip,
 	uint16_t src_port,
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
 ) : Connection(proxyService, std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::TCP, ndpiStruct),
-		destSocket(proxyService->getIoContext()) {}
+		destSocket(proxyService->getIoContext()) {
+	this->processors.emplace_back(std::make_shared<TlsProcessor>());
+	this->processors.emplace_back(std::make_shared<LogProcessor>());
+}
 
 TcpConnection::~TcpConnection() {
 	TcpConnection::closeSocketSoft();
 }
 
 void TcpConnection::resetState() {
-	tcpState = TcpState{};
-	maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
-	clientTlsForwarder.reset();
-	serverTlsForwarder.reset();
-	hasCertificate = false;
-	doTlsRelay = false;
-	serverNameIndication.clear();
-	tlsBuffer.clear();
-	domains.clear();
-	tlsRelayStatus = "Unknown";
-	lastTag.clear();
-	clientHandshakeRecordSize = 0;
+	this->tcpState = TcpState{};
+	this->maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
+	this->doTlsRelay = false;
+	this->domains.clear();
 	setRemoteSocketStatus(RemoteSocketStatus::CLOSED);
 	setTcpStatus(TcpStatus::CLOSED);
+
+	const ProcessorInitContext context{
+		.connection = shared_from_this(),
+	};
+	for (const auto& p : this->processors) {
+		p->init(context);
+	}
 }
 
 void TcpConnection::closeSocketSoft() {
@@ -95,7 +98,7 @@ void TcpConnection::sendFinAck() {
 void TcpConnection::sendSynAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto* tcpLayer = buildTcpLayer().release();
+	auto *tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->synFlag = 1;
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 
@@ -118,7 +121,7 @@ void TcpConnection::sendSynAck() {
 
 boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer *networkLayer) {
 	ZoneScoped;
-	const auto* tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
+	const auto *tcpLayer = dynamic_cast<pcpp::TcpLayer *>(networkLayer->getNextLayer());
 	if (tcpLayer == nullptr) {
 		co_return;
 	}
@@ -191,9 +194,13 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 			co_return;
 		}
 
-		log(std::format(
-			"Received unexpected packet, this packet seq={}, expected={}", packetSequenceNumber, this->tcpState.ackNumber
-		));
+		log(
+			std::format(
+				"Received unexpected packet, this packet seq={}, expected={}",
+				packetSequenceNumber,
+				this->tcpState.ackNumber
+			)
+		);
 		sendAck();
 
 		co_return;
@@ -204,24 +211,36 @@ boost::asio::awaitable<void> TcpConnection::processPacketFromDevice(pcpp::Layer 
 	this->tcpState.ackNumber = packetSequenceNumber + dataSize;
 
 	if (dataSize > 0) {
-		const auto* dataPtr = tcpLayer->getLayerPayload();
-		{
-			ZoneScopedN("dataStreamWrite");
-			auto writeLock = getWriteLock();
-			if (dataStream.size() < 1'000'000) {
-				dataStream.insert(dataStream.end(), dataPtr, dataPtr + dataSize);
-			}
-		}
+		const auto *dataPtr = tcpLayer->getLayerPayload();
 
 		sendAck();
 
-		const auto span = std::span(dataPtr, dataSize);
+		const std::span<const uint8_t> span = std::span(dataPtr, dataSize);
 
-		if (doTlsRelay) {
-			forwardTlsData(span, networkLayer);
-		} else {
-			co_await sendDataToRemote(span);
+		ProcessorRuntimeContext context{
+			.connection = shared_from_this(),
+			.origPacket = networkLayer,
+			.ioContext = proxyService->getIoContext(),
+		};
+		std::function<std::vector<uint8_t>(size_t, std::span<const uint8_t>)> procChain
+			=	[this, &procChain, &context] (size_t i, std::span<const uint8_t> data) -> std::vector<uint8_t> {
+				if (i >= processors.size()) {
+					return { data.begin(), data.end() };
+				}
+
+				return processors[i]->processDataToSocket(
+					data,
+					context,
+					[i, &procChain] (std::span<const uint8_t> d) {
+						return procChain(i + 1, d);
+					});
+			};
+
+		auto out = procChain(0, span);
+		if (out.empty()) {
+			co_return;
 		}
+		co_await sendDataToRemote(std::span(out));
 	}
 
 	if (tcpLayer->getTcpHeader()->rstFlag == 1) {
@@ -279,7 +298,7 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 	}
 
 	try {
-		this->remoteSocketStatus = RemoteSocketStatus::INITIATING;
+		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
 		co_await this->destSocket.async_connect(
 			boost::asio::ip::tcp::endpoint(boost::asio::ip::make_address(this->dstIp.toString()), this->dstPort),
 			boost::asio::use_awaitable
@@ -290,9 +309,13 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 		this->tcpState.seqNumber += 1;
 		connStartTime = std::chrono::system_clock::now();
 
-		boost::asio::co_spawn(this->proxyService->getIoContext(), [this, ptr = shared_from_this()] -> boost::asio::awaitable<void> {
-			co_await this->readLoop();
-		}, boost::asio::detached);
+		boost::asio::co_spawn(
+			this->proxyService->getIoContext(),
+			[this, ptr = shared_from_this()] -> boost::asio::awaitable<void> {
+				co_await this->readLoop();
+			},
+			boost::asio::detached
+		);
 	} catch (const boost::system::system_error& err) {
 		log(std::format("Failed to connect: {}", err.what()));
 		sendRst(true);
@@ -306,7 +329,7 @@ boost::asio::awaitable<void> TcpConnection::openSocket() {
 void TcpConnection::sendAck() {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto* tcpLayer = buildTcpLayer().release();
+	auto *tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 
 	pcpp::Packet packet(80);
@@ -326,7 +349,9 @@ boost::asio::awaitable<void> TcpConnection::sendDataToRemote(std::span<const uin
 		co_return;
 	}
 
-	const Defer def([this] { this->remoteWriteInProgress = false; });
+	const Defer def([this] {
+			this->remoteWriteInProgress = false;
+		});
 
 	while (!remoteWriteQueue.empty()) {
 		std::vector<uint8_t> nextChunk = std::move(remoteWriteQueue.front());
@@ -386,21 +411,32 @@ boost::asio::awaitable<void> TcpConnection::read() {
 		throw;
 	}
 
-	{
-		auto writeLock = getWriteLock();
-		if (dataStream.size() < 1'000'000) {
-			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
-		}
-	}
 	receivedBytes += length;
 
-	if (doTlsRelay && this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
-		this->clientTlsForwarder->getClient()->received_data(std::span(buffer.data(), length));
+	ProcessorRuntimeContext context{
+		.connection = shared_from_this(),
+		.origPacket = nullptr,
+		.ioContext = proxyService->getIoContext(),
+	};
+	std::function<std::vector<uint8_t>(size_t, std::span<const uint8_t>)> procChain
+		=	[this, &procChain, &context] (size_t i, std::span<const uint8_t> data) -> std::vector<uint8_t> {
+			if (i >= processors.size()) {
+				return { data.begin(), data.end() };
+			}
 
+			return processors[i]->processDataToDevice(
+				data,
+				context,
+				[i, &procChain] (std::span<const uint8_t> d) {
+					return procChain(i + 1, d);
+				});
+		};
+
+	auto out = procChain(0, std::span(buffer.begin(), length));
+	if (out.empty()) {
 		co_return;
 	}
-
-	sendDataToDevice(std::span(buffer.begin(), length));
+	sendDataToDevice(std::span(out));
 }
 
 boost::asio::awaitable<void> TcpConnection::readLoop() {
@@ -415,10 +451,10 @@ boost::asio::awaitable<void> TcpConnection::readLoop() {
 std::unique_ptr<pcpp::Packet> TcpConnection::encapsulateResponseDataToPacket(std::span<const uint8_t> data) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto* tcpLayer = buildTcpLayer().release();
+	auto *tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->ackFlag = 1;
 	tcpLayer->getTcpHeader()->pshFlag = 1;
-	auto* payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
+	auto *payloadLayer = new pcpp::PayloadLayer(data.data(), data.size());
 
 	auto tcpPacket = std::make_unique<pcpp::Packet>(data.size() + 100);
 	tcpPacket->addLayer(ipLayer, true);
@@ -461,7 +497,7 @@ void TcpConnection::sendDataToDevice(std::span<const uint8_t> data) {
 void TcpConnection::sendRst(bool ack) {
 	pcpp::Layer *ipLayer = buildIpLayer().release();
 
-	auto* tcpLayer = buildTcpLayer().release();
+	auto *tcpLayer = buildTcpLayer().release();
 	tcpLayer->getTcpHeader()->rstFlag = 1;
 	if (ack) {
 		tcpLayer->getTcpHeader()->ackFlag = 1;
@@ -481,10 +517,16 @@ TcpStatus TcpConnection::getTcpStatus() const {
 }
 
 void TcpConnection::setTcpStatus(TcpStatus tcpStatus) {
-	if (this->tcpStatus != tcpStatus) {
-		log("TCP status changed from " + tcpStatusToString(this->tcpStatus) + " to " + tcpStatusToString(tcpStatus));
+	if (this->tcpStatus == tcpStatus) {
+		return;
 	}
+	auto old = this->tcpStatus;
 	this->tcpStatus = tcpStatus;
+	log(std::format("TCP status changed from {} to {}", tcpStatusToString(old), tcpStatusToString(tcpStatus)));
+
+	RemoteSocketStatus oldMapped = tcpStatusToRemoteSocketStatus(old);
+	RemoteSocketStatus newMapped = tcpStatusToRemoteSocketStatus(tcpStatus);
+	std::ranges::for_each(this->processors, [&](auto& p) { p->onClientConnectionChanged(oldMapped, newMapped); });
 }
 
 void TcpConnection::closeAllForce() {
@@ -506,216 +548,9 @@ bool TcpConnection::canRemove() const {
 	return tcpStatus == TcpStatus::CLOSED && remoteSocketStatus == RemoteSocketStatus::CLOSED;
 }
 
-void TcpConnection::onTlsClientDataToSend(std::span<const uint8_t> data) {
-	Logger::get().log("[TLS Proxy Client] Sending " + std::to_string(data.size()) + " bytes to remote");
-	std::vector dataCopy = std::vector(data.begin(), data.end());
-	boost::asio::co_spawn(this->proxyService->getIoContext(), [this, data = std::move(dataCopy)]() -> boost::asio::awaitable<void> {
-		co_await this->sendDataToRemote(data);
-	}, boost::asio::detached);
-}
-
-void TcpConnection::onTlsClientDataReceived(std::span<const uint8_t> data) {
-	Logger::get().log("[TLS Proxy Client] Received " + std::to_string(data.size()) + " bytes from remote");
-
-	if (this->lastTag != SERVER_TAG) {
-		const std::string tag = std::format("\n{}\n", SERVER_TAG);
-		this->unencryptedFileStream.write(tag.c_str(), tag.size());
-		this->lastTag = SERVER_TAG;
-	}
-
-	this->unencryptedFileStream.write(reinterpret_cast<const char *>(data.data()), data.size());
-	this->unencryptedFileStream.flush();
-	this->unencryptedStream.insert(unencryptedStream.end(), data.begin(), data.end());
-	this->serverTlsForwarder->getServer()->send(data);
-}
-
-void TcpConnection::onTlsServerDataReceived(std::span<const uint8_t> data) {
-	Logger::get().log("[TLS Proxy Server] Received " + std::to_string(data.size()) + " bytes from client");
-
-	if (this->lastTag != CLIENT_TAG) {
-		const std::string tag = std::format("\n{}\n", CLIENT_TAG);
-		this->unencryptedFileStream.write(tag.c_str(), tag.size());
-		this->lastTag = CLIENT_TAG;
-	}
-
-	std::vector modifiedData(data.begin(), data.end());
-	regexReplace(
-		modifiedData,
-		std::regex(
-			"\r\nAccept-Encoding: .+\r\n",
-			std::regex_constants::icase
-		),
-		"\r\nAccept-Encoding: identity\r\n"
-	);
-
-	this->unencryptedFileStream.write(reinterpret_cast<const char *>(modifiedData.data()), modifiedData.size());
-	this->unencryptedFileStream.flush();
-	this->unencryptedStream.insert(unencryptedStream.end(), modifiedData.begin(), modifiedData.end());
-	this->clientTlsForwarder->getClient()->send(modifiedData);
-}
-
-void TcpConnection::onTlsServerDataToSend(std::span<const uint8_t> data) {
-	Logger::get().log("[TLS Proxy Server] Sending " + std::to_string(data.size()) + " bytes to client");
-	this->sendDataToDevice(data);
-}
-
-void TcpConnection::onTlsServerAlert(Botan::TLS::Alert alert) {
-	log(this->serverNameIndication + " TLS Server alert: " + alert.type_string());
-	if (alert.is_fatal()) {
-		tlsRelayStatus = "Device Fail: " + alert.type_string();
-	}
-	if (this->clientTlsForwarder && this->clientTlsForwarder->getClient()) {
-		this->clientTlsForwarder->getClient()->send_alert(alert);
-	}
-}
-
-void TcpConnection::onTlsClientAlert(Botan::TLS::Alert alert) {
-	log(this->serverNameIndication + " TLS Client alert: " + alert.type_string());
-	if (alert.is_fatal()) {
-		tlsRelayStatus = "Remote Fail: " + alert.type_string();
-	}
-	if (this->serverTlsForwarder && this->serverTlsForwarder->getServer()) {
-		this->serverTlsForwarder->getServer()->send_alert(alert);
-	}
-}
-
-void TcpConnection::onTlsClientGotCertificate(const Botan::X509_Certificate &cert) {
-	Logger::get().log("Received certificate: " + cert.to_string());
-	this->initTlsServer(cert);
-	this->hasCertificate = true;
-	tlsRelayStatus = "Received certificate";
-	if (!cert.subject_info("X520.CommonName").empty()) {
-		for (const auto& domain : cert.subject_info("X520.CommonName")) {
-			if (domain.empty()) {
-				continue;
-			}
-			domains.insert(domain);
-		}
-	}
-	const auto& altName = cert.subject_alt_name();
-	if (altName.has_items() && !altName.dn().to_string().empty()) {
-		domains.insert(altName.dn().to_string());
-	}
-	this->filePath = std::format(
-		"tls-streams/{}_{}_{}.bin",
-		this->client->getClientIp().toString(),
-		srcPort,
-		domains.empty() ? this->dstIp.toString() : std::string(*domains.begin())
-	);
-	this->filePath = std::regex_replace(this->filePath, std::regex("(:|\\*)"), "_");
-	this->unencryptedFileStream = std::ofstream(this->filePath, std::ios::binary | std::ios::app);
-	if (!this->unencryptedFileStream) {
-		Logger::get().log("Failed to open stream");
-	}
-	if (!this->tlsBuffer.empty()) {
-		const std::vector data(tlsBuffer.begin(), tlsBuffer.end());
-		this->serverTlsForwarder->getServer()->received_data(data);
-		this->tlsBuffer.clear();
-	}
-}
-
-void TcpConnection::initTlsClient() {
-	this->clientTlsForwarder = std::make_shared<ClientForwarder>(
-		this->serverNameIndication,
-		this->dstPort,
-		[this](uint64_t seq_no, std::span<const uint8_t> data) {
-			this->onTlsClientDataReceived(data);
-		},
-		[this](std::span<const uint8_t> data) {
-			this->onTlsClientDataToSend(data);
-		},
-		[this](Botan::TLS::Alert alert) {
-			this->onTlsClientAlert(alert);
-		},
-		[this](const Botan::X509_Certificate &cert) {
-			this->onTlsClientGotCertificate(cert);
-		}
-	);
-}
-
-void TcpConnection::initTlsServer(const Botan::X509_Certificate &cert) {
-	this->serverTlsForwarder = std::make_shared<ServerForwarder>(
-		cert,
-		[this](uint64_t seq_no, std::span<const uint8_t> data) {
-			this->onTlsServerDataReceived(data);
-		},
-		[this](std::span<const uint8_t> data) {
-			this->onTlsServerDataToSend(data);
-		},
-		[this](Botan::TLS::Alert alert) {
-			this->onTlsServerAlert(alert);
-		},
-		[this] {
-			this->onTlsServerSuccess();
-		}
-	);
-}
-
-void TcpConnection::forwardTlsData(std::span<const uint8_t> data, pcpp::Layer *networkLayer) {
-	if (this->hasCertificate) {
-		// just forward the data
-		if (!this->tlsBuffer.empty()) {
-			this->serverTlsForwarder->getServer()->received_data(std::span(this->tlsBuffer.begin(), this->tlsBuffer.end()));
-			this->tlsBuffer.clear();
-		}
-		this->serverTlsForwarder->getServer()->received_data(data);
-
-		return;
-	}
-
-	// init the tls forwarder
-	if (const auto* sslLayer = dynamic_cast<pcpp::SSLHandshakeLayer *>(networkLayer->getNextLayer()->getNextLayer())) {
-		this->clientHandshakeRecordSize = pcpp::netToHost16(sslLayer->getRecordLayer()->length);
-	}
-	this->tlsBuffer.insert(this->tlsBuffer.end(), data.begin(), data.end());
-	if (this->tlsBuffer.size() >= this->clientHandshakeRecordSize) {
-		pcpp::Packet dummyPacket;
-		const pcpp::SSLHandshakeLayer sslHandshakeLayer(tlsBuffer.data(), tlsBuffer.size(), nullptr, &dummyPacket);
-		if (const auto* clientHello = sslHandshakeLayer.getHandshakeMessageOfType<pcpp::SSLClientHelloMessage>()) {
-			if (const auto* sniExt = dynamic_cast<pcpp::SSLServerNameIndicationExtension *>(clientHello->getExtensionOfType(pcpp::SSL_EXT_SERVER_NAME)); sniExt != nullptr) {
-				serverNameIndication = sniExt->getHostName();
-				if (!serverNameIndication.empty()) {
-					domains.insert(serverNameIndication);
-				}
-			}
-		}
-		initTlsClient();
-		if (this->client) {
-			client->getConnectionManager()->markAsTlsConnection(std::dynamic_pointer_cast<TcpConnection>(shared_from_this()));
-		}
-	}
-}
-
-const std::string & TcpConnection::getServerNameIndication() {
-	return serverNameIndication;
-}
-
-const std::deque<uint8_t> & TcpConnection::getUnencryptedStream() {
-	return unencryptedStream;
-}
-
-const std::string & TcpConnection::getTlsRelayStatus() const {
-	return tlsRelayStatus;
-}
-
-void TcpConnection::onTlsServerSuccess() {
-	this->tlsRelayStatus = "Success";
-}
-
-std::set<std::string> & TcpConnection::getDomains() {
-	return domains;
-}
-
 void TcpConnection::logToFile() {
 	if (tcpStatus != TcpStatus::CLOSED || remoteSocketStatus != RemoteSocketStatus::CLOSED) {
 		return;
-	}
-	if (this->unencryptedFileStream.tellp() == 0) {
-		this->unencryptedFileStream.close();
-		std::remove(this->filePath.c_str());
-	}
-	if (this->unencryptedFileStream.is_open()) {
-		this->unencryptedFileStream.close();
 	}
 	Connection::logToFile();
 }
@@ -727,10 +562,4 @@ std::unique_ptr<pcpp::TcpLayer> TcpConnection::buildTcpLayer() const {
 	tcpLayer->getTcpHeader()->windowSize = pcpp::hostToNet16(this->tcpState.ourWindowSize);
 
 	return tcpLayer;
-}
-
-void TcpConnection::regexReplace(std::vector<uint8_t> &data, const std::regex &pat, const std::string &repl) {
-	std::string s(reinterpret_cast<char *>(data.data()), data.size());
-	std::string out = std::regex_replace(s, pat, repl);
-	data.assign(out.begin(), out.end());
 }

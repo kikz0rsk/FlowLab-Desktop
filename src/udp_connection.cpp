@@ -50,12 +50,6 @@ boost::asio::awaitable<void> UdpConnection::processPacketFromDevice(pcpp::Layer 
 		co_await sendDataToRemote(std::span<const uint8_t>{});
 	} else {
 		const auto* data = udpLayer->getLayerPayload();
-		{
-			auto writeLock = getWriteLock();
-			if (dataStream.size() < 1'000'000) {
-				dataStream.insert(dataStream.end(), data, data + udpLayer->getLayerPayloadSize());
-			}
-		}
 		co_await sendDataToRemote(std::span(data, udpLayer->getLayerPayloadSize()));
 	}
 }
@@ -64,7 +58,7 @@ boost::asio::awaitable<void> UdpConnection::openSocket() {
 	ZoneScoped;
 
 	try {
-		this->remoteSocketStatus = RemoteSocketStatus::INITIATING;
+		setRemoteSocketStatus(RemoteSocketStatus::INITIATING);
 		co_await this->destSocket.async_connect(
 			boost::asio::ip::udp::endpoint(boost::asio::ip::make_address(this->dstIp.toString()), this->dstPort),
 			boost::asio::use_awaitable
@@ -133,13 +127,6 @@ boost::asio::awaitable<void> UdpConnection::read() {
 		throw;
 	}
 
-	{
-		ZoneScopedN("dataStreamWrite");
-		auto writeLock = getWriteLock();
-		if (dataStream.size() < 1'000'000) {
-			dataStream.insert(dataStream.end(), buffer.begin(), buffer.begin() + length);
-		}
-	}
 	receivedBytes += length;
 
 	sendDataToDevice(std::span(buffer.begin(), length));

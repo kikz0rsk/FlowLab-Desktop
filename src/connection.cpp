@@ -11,6 +11,7 @@
 #include "socket_utils.h"
 #include "file_writer.h"
 #include "proxy_service.h"
+#include "iprocessor.h"
 
 Connection::Connection(
 	std::shared_ptr<ProxyService> proxyService,
@@ -132,14 +133,13 @@ RemoteSocketStatus Connection::getRemoteSocketStatus() const {
 }
 
 void Connection::setRemoteSocketStatus(RemoteSocketStatus status) {
-	if (remoteSocketStatus != status) {
-		log("Remote socket status changed from " + remoteSocketStatusToString(remoteSocketStatus) + " to " + remoteSocketStatusToString(status));
+	if (this->remoteSocketStatus == status) {
+		return;
 	}
+	auto old = this->remoteSocketStatus.load();
 	remoteSocketStatus = status;
-}
-
-const std::deque<uint8_t> &Connection::getDataStream() const {
-	return dataStream;
+	log("Remote socket status changed from " + remoteSocketStatusToString(old) + " to " + remoteSocketStatusToString(status));
+	std::ranges::for_each(this->processors, [&](auto &proc) { proc->onClientConnectionChanged(old, status); });
 }
 
 const sockaddr_in & Connection::getDestSockAddr() const {

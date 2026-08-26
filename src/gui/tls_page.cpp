@@ -8,9 +8,10 @@
 #include "gui/mainwindow.h"
 #include "ndpi.h"
 #include "proxy_service.h"
+#include "tls_processor.h"
 
 TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
-	QWidget(parent), mainWindow(mainWindow), ui(new Ui::TlsPage) {
+	QWidget(parent), mainWindow(mainWindow), ui(new Ui::TlsPage), proxy(new QSortFilterProxyModel(ui->connectionsList)) {
 	ui->setupUi(this);
 	this->ui->enableTlsProxyCheckbox->setCheckState(mainWindow.getProxyService()->getEnableTlsRelay() == true ? Qt::CheckState::Checked : Qt::CheckState::Unchecked);
 	connect(this, &TlsPage::addConnection, this, &TlsPage::onAddConnection);
@@ -35,7 +36,7 @@ TlsPage::TlsPage(MainWindow& mainWindow, QWidget *parent) :
 
 	new FlowlabSyntaxHighlighter(ui->connectionStream);
 	this->model.setHorizontalHeaderLabels({"ID", "Client IP", "Source IP", "Source Port", "Destination IP", "Destination Port", "Domain"});
-	proxy = new QSortFilterProxyModel(ui->connectionsList);
+
 	proxy->setSourceModel(&model);
 	ui->connectionsList->setSortingEnabled(true);
 	ui->connectionsList->setModel(proxy);
@@ -100,13 +101,15 @@ void TlsPage::listView_activated(const QModelIndex &index) {
 		const auto length = buffer.size() / 2;
 		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
 	}
-	std::string domains;
-	for (const auto& domain : connection->getDomains()) {
-		domains += domain + ", ";
-	}
-	ui->domainsText->setText(QString::fromStdString(domains));
 
-	ui->handshakeStatusText->setText(QString::fromStdString(connection->getTlsRelayStatus()));
+	if (const auto tlsProc = connection->getProcessor<TlsProcessor>(); tlsProc) {
+		std::string domains;
+		for (const auto& domain : tlsProc->getDomains()) {
+			domains += domain + ", ";
+		}
+		ui->domainsText->setText(QString::fromStdString(domains));
+		ui->handshakeStatusText->setText(QString::fromStdString(tlsProc->getTlsRelayStatus()));
+	}
 	// std::array<char, 60> buffer{};
 	// ndpi::ndpi_protocol2name(mainWindow.getProxyService()->getNdpiStruct(), connection->getNdpiProtocol(), buffer.data(), buffer.size());
 	// ui->protocolText->setText(QString::fromUtf8(buffer.data()));
@@ -125,11 +128,11 @@ void TlsPage::onAddConnection(std::shared_ptr<TcpConnection> connection) {
 	auto *dstIp = new QStandardItem(QString::fromStdString(connection->getDstIp().toString()));
 	auto *dstPort = new QStandardItem(QString::number(connection->getDstPort()));
 	dstPort->setData(QVariant(connection->getDstPort()), Qt::UserRole);
-	std::string domains;
-	for (const auto& domain : connection->getDomains()) {
-		domains += domain + ", ";
+	QString domainStr;
+	if (const auto tlsProc = connection->getProcessor<TlsProcessor>(); tlsProc) {
+		domainStr = QString::fromStdString(tlsProc->getServerNameIndication());
 	}
-	auto *domain = new QStandardItem(QString::fromStdString(connection->getServerNameIndication()));
+	auto *domain = new QStandardItem(domainStr);
 	model.insertRow(0, {orderNum, clientIp, srcIp, srcPort, dstIp, dstPort, domain});
 }
 

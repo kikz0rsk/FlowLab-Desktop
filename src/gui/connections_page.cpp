@@ -85,15 +85,15 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 	ui->sourcePortText->setText(QString::number((uint) connection->getSrcPort()));
 	ui->destinationPortText->setText(QString::number(connection->getDstPort()));
 	if (showMode == 0) {
-		std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
-		ui->connectionStream->setPlainText(QString::fromUtf8(buffer.data(), buffer.size()));
+		// std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
+		// ui->connectionStream->setPlainText(QString::fromUtf8(buffer.data(), buffer.size()));
 	} else {
-		std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
-		if (buffer.size() % 2 == 1) {
-			buffer.emplace_back(0);
-		}
-		const auto length = buffer.size() / 2;
-		ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
+		// std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
+		// if (buffer.size() % 2 == 1) {
+		// 	buffer.emplace_back(0);
+		// }
+		// const auto length = buffer.size() / 2;
+		// ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
 	}
 
 	std::vector<char> buffer(60);

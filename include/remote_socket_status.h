@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <stdexcept>
 
 enum class RemoteSocketStatus {
 	INITIATING,

@@ -137,11 +137,8 @@ class ProxyService : public std::enable_shared_from_this<ProxyService> {
 		[[nodiscard]] bool isRunning() const;
 
 	protected:
-		boost::asio::awaitable<void>  acceptLoop();
-
+		boost::asio::awaitable<void> acceptLoop();
 		boost::asio::awaitable<void> handleClient(boost::asio::ip::tcp::socket socket);
-
-		bool sendFromDevice(std::shared_ptr<Client> client);
 		void cleanUpAfterClient(std::shared_ptr<Client> client);
 
 	public:

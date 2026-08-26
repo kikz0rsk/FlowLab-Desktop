@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#include <set>
 #include <vector>
 #include <boost/signals2.hpp>
 #include <pcapplusplus/DnsLayer.h>
