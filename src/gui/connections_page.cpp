@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "log_processor.h"
 #include "gui/syntax_highlighter.h"
 #include "ui_connections_page.h"
 #include "ndpi.h"
@@ -84,16 +85,25 @@ void ConnectionsPage::listView_activated(const QModelIndex &index) {
 	ui->destinationIpText->setText(QString::fromStdString(connection->getDstIp().toString()));
 	ui->sourcePortText->setText(QString::number((uint) connection->getSrcPort()));
 	ui->destinationPortText->setText(QString::number(connection->getDstPort()));
-	if (showMode == 0) {
-		// std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
-		// ui->connectionStream->setPlainText(QString::fromUtf8(buffer.data(), buffer.size()));
-	} else {
-		// std::vector<char> buffer(connection->getDataStream().begin(), connection->getDataStream().end());
-		// if (buffer.size() % 2 == 1) {
-		// 	buffer.emplace_back(0);
-		// }
-		// const auto length = buffer.size() / 2;
-		// ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
+
+	const auto logProc = connection->getProcessor<LogProcessor>();
+	if (logProc) {
+		std::vector<char> buffer;
+		{
+			const auto& stream = logProc->getStream();
+			std::shared_lock lock(logProc->getMutex());
+			buffer = std::vector<char>(stream.begin(), stream.end());
+		}
+
+		if (showMode == 0) {
+			ui->connectionStream->setPlainText(QString::fromUtf8(buffer.data(), buffer.size()));
+		} else {
+			if (buffer.size() % 2 == 1) {
+				buffer.emplace_back(0);
+			}
+			const auto length = buffer.size() / 2;
+			ui->connectionStream->setPlainText(QString::fromUtf16((const char16_t *) buffer.data(), length));
+		}
 	}
 
 	std::vector<char> buffer(60);

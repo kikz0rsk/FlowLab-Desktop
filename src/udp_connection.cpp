@@ -13,6 +13,7 @@
 #include <tracy/Tracy.hpp>
 
 #include "dns_manager.h"
+#include "log_processor.h"
 #include "packet_utils.h"
 #include "proxy_service.h"
 
@@ -24,7 +25,9 @@ UdpConnection::UdpConnection(
 	uint16_t src_port,
 	uint16_t dst_port,
 	ndpi::ndpi_detection_module_struct *ndpiStruct
-) : Connection(proxyService, std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::UDP, ndpiStruct), destSocket(proxyService->getIoContext()) {}
+) : Connection(proxyService, std::move(client), src_ip, dst_ip, src_port, dst_port, Protocol::UDP, ndpiStruct), destSocket(proxyService->getIoContext()) {
+	this->processors.emplace_back(std::make_shared<LogProcessor>());
+}
 
 UdpConnection::~UdpConnection() {
 	UdpConnection::closeSocketSoft();

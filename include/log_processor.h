@@ -10,6 +10,8 @@
 class TlsProcessor;
 
 class LogProcessor : public IProcessor {
+	std::shared_mutex mutex;
+	std::deque<uint8_t> stream;
 	std::optional<std::ofstream> logFile;
 	int lastLogDirection = 0;
 
@@ -28,6 +30,9 @@ class LogProcessor : public IProcessor {
 
 		void onRemoteConnectionChanged(RemoteSocketStatus oldStatus, RemoteSocketStatus newStatus) override;
 
+		const std::deque<uint8_t>& getStream() const;
+		std::shared_mutex& getMutex();
+
 	private:
 		void tryInitFile(ProcessorRuntimeContext& context);
 		void writeHeader(int direction, std::string_view tag);
@@ -37,6 +42,11 @@ class LogProcessor : public IProcessor {
 		template<typename Callback>
 		requires std::invocable<Callback>
 		std::vector<uint8_t> logAndForward(std::span<const uint8_t> data, ProcessorRuntimeContext& context, NextForwarderCallback next, Callback logCallback) {
+			{
+				std::unique_lock lock(this->mutex);
+				this->stream.insert(this->stream.end(), data.begin(), data.end());
+			}
+
 			if (!context.meta.contains(TlsProcessor::META_TLS_RELAY)) {
 				return next(data);
 			}

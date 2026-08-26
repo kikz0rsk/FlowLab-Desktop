@@ -26,6 +26,14 @@ void LogProcessor::onRemoteConnectionChanged(RemoteSocketStatus oldStatus, Remot
 	}
 }
 
+const std::deque<uint8_t>& LogProcessor::getStream() const {
+	return this->stream;
+}
+
+std::shared_mutex& LogProcessor::getMutex() {
+	return this->mutex;
+}
+
 void LogProcessor::tryInitFile(ProcessorRuntimeContext &context) {
 	if (this->logFile.has_value()) {
 		return;
